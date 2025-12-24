@@ -67,6 +67,7 @@ export interface AuthState {
 export type MainTabParamList = {
   Habits: undefined;
   Feed: undefined;
+  Friends: undefined;
   Profile: undefined;
 };
 
@@ -123,4 +124,5 @@ export type RootStackParamList = {
   UserProfile: { userId: string };
   Notifications: undefined;
   Messaging: { friendId: string; friendName: string };
+  Settings: undefined;
 };

@@ -357,15 +357,26 @@ const HabitDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <View style={styles.navHeader}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.navHeaderTitle}>Habit Details</Text>
+        <View style={styles.placeholder} />
+      </View>
+
       <ScrollView>
-        <View style={[styles.header, { backgroundColor: habit.color }]}>
+        <View style={[styles.header, { backgroundColor: "#fff" }]}>
           <View style={styles.titleContainer}>
             <Text style={styles.habitTitle}>{habit.title}</Text>
             <TouchableOpacity
               onPress={handleEditHabitName}
               style={styles.editButton}
             >
-              <Ionicons name="pencil" size={20} color="#fff" />
+              <Ionicons name="pencil" size={20} color="#333" />
             </TouchableOpacity>
           </View>
           {habit.description && (
@@ -390,11 +401,6 @@ const HabitDetailScreen: React.FC = () => {
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{stats.longest_streak}</Text>
               <Text style={styles.statLabel}>Longest Streak</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{habit.frequency}</Text>
-              <Text style={styles.statLabel}>Frequency</Text>
             </View>
           </View>
         </View>
@@ -540,30 +546,52 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  navHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  navHeaderTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  backButton: {
+    padding: 8,
+  },
+  placeholder: {
+    width: 40,
+  },
   header: {
     padding: 20,
-    paddingTop: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 8,
   },
   habitTitle: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 8,
+    color: "#333",
     flex: 1,
   },
   editButton: {
     padding: 8,
-    marginLeft: 12,
   },
   habitDescription: {
     fontSize: 16,
-    color: "#fff",
-    opacity: 0.9,
+    color: "#666",
+    lineHeight: 24,
   },
   statsContainer: {
     backgroundColor: "#fff",
@@ -579,19 +607,17 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
+    gap: 8,
   },
   statCard: {
     flex: 1,
-    minWidth: "45%",
     backgroundColor: "#f8f9fa",
     borderRadius: 8,
-    padding: 16,
+    padding: 12,
     alignItems: "center",
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#007AFF",
     marginBottom: 4,

@@ -36,8 +36,7 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarGridWidth, setCalendarGridWidth] = useState(0);
 
-  const daySize =
-    calendarGridWidth > 0 ? Math.floor(calendarGridWidth / 7) : 0;
+  const daySize = calendarGridWidth > 0 ? Math.floor(calendarGridWidth / 7) : 0;
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -126,12 +125,12 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
   };
 
   const renderDayHeaders = () => {
-    const dayHeaders = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayHeaders = ["S", "M", "T", "W", "T", "F", "S"];
 
     return (
       <View style={styles.dayHeadersRow}>
-        {dayHeaders.map((day) => (
-          <View key={day} style={[styles.dayHeader, { width: daySize }]}>
+        {dayHeaders.map((day, index) => (
+          <View key={index} style={[styles.dayHeader, { width: daySize }]}>
             <Text style={styles.dayHeaderText}>{day}</Text>
           </View>
         ))}
@@ -182,9 +181,6 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
                     source={{ uri: completion.front_image_url }}
                     style={styles.dayImageFront}
                   />
-                  <View style={styles.dualIndicator}>
-                    <Ionicons name="camera" size={6} color="#fff" />
-                  </View>
                 </View>
               ) : (
                 // Single camera layout
@@ -366,7 +362,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   compactCalendarContainer: {
-    padding: 12,
+    padding: 0,
   },
 });
 

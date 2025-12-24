@@ -17,6 +17,8 @@ import {
   HabitDetailScreen,
   CameraScreen,
   LoadingScreen,
+  FriendsScreen,
+  SettingsScreen,
 } from "../screens";
 import DualCameraScreen from "../screens/DualCameraScreen";
 import UserProfileScreen from "../screens/UserProfileScreen";
@@ -39,6 +41,8 @@ const MainTabNavigator = () => {
               : "checkmark-circle-outline";
           } else if (route.name === "Feed") {
             iconName = focused ? "home" : "home-outline";
+          } else if (route.name === "Friends") {
+            iconName = focused ? "people" : "people-outline";
           } else if (route.name === "Profile") {
             iconName = focused ? "person" : "person-outline";
           } else {
@@ -47,13 +51,14 @@ const MainTabNavigator = () => {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: "#007AFF",
+        tabBarActiveTintColor: "black",
         tabBarInactiveTintColor: "gray",
         headerShown: false,
       })}
     >
       <Tab.Screen name="Habits" component={HabitsScreen} />
       <Tab.Screen name="Feed" component={FeedScreen} />
+      <Tab.Screen name="Friends" component={FriendsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -80,14 +85,13 @@ const MainStack = () => {
         name="CreateHabit"
         component={CreateHabitScreen}
         options={{
-          title: "Create Habit",
-          presentation: "modal",
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="HabitDetail"
         component={HabitDetailScreen}
-        options={{ title: "Habit Details" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Camera"
@@ -101,24 +105,28 @@ const MainStack = () => {
         name="DualCamera"
         component={DualCameraScreen}
         options={{
-          title: "Dual Camera",
-          presentation: "modal",
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="UserProfile"
         component={UserProfileScreen}
-        options={{ title: "User Profile" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}
-        options={{ title: "Notifications" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Messaging"
         component={MessagingScreen}
         options={{ title: "Messages" }}
+      />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: "Settings" }}
       />
     </Stack.Navigator>
   );

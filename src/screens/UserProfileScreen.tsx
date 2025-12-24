@@ -377,7 +377,7 @@ const UserProfileScreen: React.FC = () => {
   };
 
   const renderHabitItem = ({ item }: { item: HabitWithStats }) => (
-    <View style={[styles.habitCard, { borderLeftColor: item.color }]}>
+    <View style={styles.habitCard}>
       <View style={styles.habitHeader}>
         <View style={styles.habitInfo}>
           <View style={styles.titleRow}>
@@ -584,7 +584,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    borderLeftWidth: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

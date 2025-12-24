@@ -6,72 +6,64 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { useAuth } from "../contexts/AuthContext";
+import { useCollapsibleHeader } from "../hooks/useCollapsibleHeader";
+import { RootStackParamList } from "../types";
+
+type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList>;
+
+const HEADER_HEIGHT = 120;
 
 const ProfileScreen: React.FC = () => {
-  const { user, signOut } = useAuth();
-
-  const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Sign Out", style: "destructive", onPress: signOut },
-    ]);
-  };
+  const { user } = useAuth();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const { scrollY, translateY, handleScroll } =
+    useCollapsibleHeader(HEADER_HEIGHT);
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            transform: [{ translateY }],
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 10,
+          },
+        ]}
+      >
         <Text style={styles.headerTitle}>Profile</Text>
-      </View>
-
-      <View style={styles.profileSection}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={40} color="#666" />
-        </View>
-        <Text style={styles.username}>{user?.username}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
-      </View>
-
-      <View style={styles.menuSection}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Settings")}
+          style={styles.settingsButton}
+        >
           <Ionicons name="settings-outline" size={24} color="#333" />
-          <Text style={styles.menuText}>Settings</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
+      </Animated.View>
 
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="notifications-outline" size={24} color="#333" />
-          <Text style={styles.menuText}>Notifications</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="help-circle-outline" size={24} color="#333" />
-          <Text style={styles.menuText}>Help & Support</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="information-circle-outline" size={24} color="#333" />
-          <Text style={styles.menuText}>About</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.dangerSection}>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Version 1.0.0</Text>
-        <Text style={styles.footerText}>Made with ❤️ for habit tracking</Text>
-      </View>
-    </ScrollView>
+      <Animated.ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingTop: HEADER_HEIGHT }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.profileSection}>
+          <View style={styles.avatar}>
+            <Ionicons name="person" size={40} color="#666" />
+          </View>
+          <Text style={styles.username}>{user?.username}</Text>
+          <Text style={styles.email}>{user?.email}</Text>
+        </View>
+      </Animated.ScrollView>
+    </View>
   );
 };
 
@@ -80,14 +72,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
+  scrollView: {
+    flex: 1,
+  },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
     backgroundColor: "#fff",
   },
+  settingsButton: {
+    padding: 8,
+    marginRight: -8,
+  },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: "bold",
     color: "#333",
   },
@@ -115,49 +117,6 @@ const styles = StyleSheet.create({
   email: {
     fontSize: 16,
     color: "#666",
-  },
-  menuSection: {
-    backgroundColor: "#fff",
-    marginBottom: 20,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  menuText: {
-    flex: 1,
-    fontSize: 16,
-    color: "#333",
-    marginLeft: 16,
-  },
-  dangerSection: {
-    backgroundColor: "#fff",
-    marginBottom: 20,
-  },
-  signOutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  signOutText: {
-    fontSize: 16,
-    color: "#FF3B30",
-    marginLeft: 16,
-    fontWeight: "500",
-  },
-  footer: {
-    alignItems: "center",
-    paddingVertical: 32,
-  },
-  footerText: {
-    fontSize: 14,
-    color: "#999",
-    marginBottom: 4,
   },
 });
 

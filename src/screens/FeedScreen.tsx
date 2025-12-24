@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Modal,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -15,17 +16,20 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { supabase } from "../services/supabase";
 import { FeedItem, RootStackParamList } from "../types";
 import { useAuth } from "../contexts/AuthContext";
-import FriendsModal from "../components/FriendsModal";
+import { useCollapsibleHeader } from "../hooks/useCollapsibleHeader";
 
 type FeedScreenNavigationProp = StackNavigationProp<RootStackParamList>;
+
+const HEADER_HEIGHT = 120;
 
 const FeedScreen: React.FC = () => {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showFriendsModal, setShowFriendsModal] = useState(false);
   const { user } = useAuth();
   const navigation = useNavigation<FeedScreenNavigationProp>();
+  const { scrollY, translateY, handleScroll } =
+    useCollapsibleHeader(HEADER_HEIGHT);
 
   // useEffect(() => {
   //   if (user) {
@@ -118,9 +122,18 @@ const FeedScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
         <View
-          style={[styles.habitBadge, { backgroundColor: item.habit.color }]}
+          style={[
+            styles.habitBadge,
+            {
+              backgroundColor: "#fff",
+              borderWidth: 1,
+              borderColor: item.habit.color,
+            },
+          ]}
         >
-          <Text style={styles.habitTitle}>{item.habit.title}</Text>
+          <Text style={[styles.habitTitle, { color: item.habit.color }]}>
+            {item.habit.title}
+          </Text>
         </View>
       </View>
 
@@ -137,9 +150,6 @@ const FeedScreen: React.FC = () => {
                 source={{ uri: item.completion.front_image_url }}
                 style={styles.frontImageOverlay}
               />
-              <View style={styles.dualIndicator}>
-                <Ionicons name="camera" size={12} color="#fff" />
-              </View>
             </View>
           ) : (
             // Single camera layout
@@ -176,15 +186,21 @@ const FeedScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Community Feed</Text>
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            transform: [{ translateY }],
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 10,
+          },
+        ]}
+      >
+        <Text style={styles.headerTitle}>HabitSnap</Text>
         <View style={styles.headerButtons}>
-          <TouchableOpacity
-             style={styles.headerButton}
-             onPress={() => setShowFriendsModal(true)}
-           >
-             <Ionicons name="people-outline" size={24} color="#333" />
-           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => navigation.navigate("Notifications")}
@@ -192,10 +208,10 @@ const FeedScreen: React.FC = () => {
             <Ionicons name="notifications-outline" size={24} color="#333" />
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
 
       {feedItems.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <View style={[styles.emptyContainer, { paddingTop: HEADER_HEIGHT }]}>
           <Ionicons name="people-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>No Activity Yet</Text>
           <Text style={styles.emptySubtitle}>
@@ -203,21 +219,25 @@ const FeedScreen: React.FC = () => {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <Animated.FlatList
           data={feedItems}
           renderItem={renderFeedItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            { paddingTop: HEADER_HEIGHT },
+          ]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              progressViewOffset={HEADER_HEIGHT}
+            />
           }
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         />
       )}
-      
-      <FriendsModal
-        visible={showFriendsModal}
-        onClose={() => setShowFriendsModal(false)}
-      />
     </View>
   );
 };
@@ -225,7 +245,7 @@ const FeedScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#fff",
   },
   centerContainer: {
     flex: 1,
@@ -250,22 +270,16 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: "bold",
     color: "#333",
   },
   listContainer: {
-    padding: 20,
+    paddingBottom: 20,
   },
   feedCard: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: 0,
   },
   feedHeader: {
     flexDirection: "row",
@@ -308,7 +322,7 @@ const styles = StyleSheet.create({
   },
   feedImage: {
     width: "100%",
-    height: 300,
+    aspectRatio: 4 / 5,
     resizeMode: "cover",
   },
   imageContainer: {
@@ -317,14 +331,14 @@ const styles = StyleSheet.create({
   dualImageContainer: {
     position: "relative",
     width: "100%",
-    height: 300,
+    aspectRatio: 4 / 5,
   },
   frontImageOverlay: {
     position: "absolute",
     top: 12,
     right: 12,
     width: 80,
-    height: 80,
+    aspectRatio: 4 / 5,
     resizeMode: "cover",
     borderRadius: 8,
     borderWidth: 2,

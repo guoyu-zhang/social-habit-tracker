@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,13 +7,16 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface DualCameraScreenProps {
   route: {
@@ -29,26 +32,40 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
   const { user } = useAuth();
   const navigation = useNavigation();
 
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
+
   const [captureStep, setCaptureStep] = useState<
-    "ready" | "back" | "front" | "uploading" | "complete"
-  >("ready");
+    "back" | "front" | "preview" | "uploading" | "complete"
+  >("back");
   const [backImage, setBackImage] = useState<string | null>(null);
   const [frontImage, setFrontImage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [habitDetails, setHabitDetails] = useState<{
+    title: string;
+    color: string;
+  } | null>(null);
 
   useEffect(() => {
-    requestPermissions();
-  }, []);
+    if (!permission) {
+      requestPermission();
+    }
+    fetchHabitDetails();
+  }, [permission]);
 
-  const requestPermissions = async () => {
-    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-    if (cameraPermission.status !== "granted") {
-      Alert.alert(
-        "Permission Required",
-        "Camera permission is required to take photos."
-      );
-      navigation.goBack();
+  const fetchHabitDetails = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("habits")
+        .select("title, color")
+        .eq("id", habitId)
+        .single();
+
+      if (error) throw error;
+      setHabitDetails(data);
+    } catch (error) {
+      console.error("Error fetching habit details:", error);
     }
   };
 
@@ -61,41 +78,16 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
     return bytes;
   };
 
-  const captureImage = async (
-    cameraType: ImagePicker.CameraType
-  ): Promise<string | null> => {
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        aspect: [4, 3],
-        quality: 0.8,
-        base64: true,
-        cameraType,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        return result.assets[0].uri;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error capturing image:", error);
-      Alert.alert("Error", "Failed to capture image");
-      return null;
-    }
-  };
-
   const uploadImage = async (
     imageUri: string,
     fileName: string
   ): Promise<string | null> => {
     try {
-      // Compress and resize the image
       const manipulatedImage = await ImageManipulator.manipulateAsync(
         imageUri,
-        [{ resize: { width: 1280 } }], // Resize to max width of 1280px
+        [{ resize: { width: 1280 } }],
         {
-          compress: 0.6, // 60% quality for consistency with CameraScreen
+          compress: 0.6,
           format: ImageManipulator.SaveFormat.JPEG,
         }
       );
@@ -129,62 +121,74 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
     }
   };
 
-  const startDualCapture = async () => {
-    if (!user) return;
-
-    setIsCapturing(true);
-    setCaptureStep("back");
+  const handleCapture = async () => {
+    if (!cameraRef.current || isCapturing) return;
 
     try {
-      // Capture back camera first
-      const backImageUri = await captureImage(ImagePicker.CameraType.back);
-      if (!backImageUri) {
-        setIsCapturing(false);
-        setCaptureStep("ready");
-        return;
+      setIsCapturing(true);
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        base64: false, // We read file later in uploadImage
+        skipProcessing: false,
+      });
+
+      if (!photo) {
+        throw new Error("Failed to take photo");
       }
 
-      setBackImage(backImageUri);
-      setCaptureStep("front");
-
-      // Small delay for better UX
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Capture front camera
-      const frontImageUri = await captureImage(ImagePicker.CameraType.front);
-      if (!frontImageUri) {
+      if (captureStep === "back") {
+        setBackImage(photo.uri);
+        setCaptureStep("front");
         setIsCapturing(false);
-        setCaptureStep("ready");
-        setBackImage(null);
-        return;
+      } else if (captureStep === "front") {
+        setFrontImage(photo.uri);
+        setCaptureStep("preview");
+        setIsCapturing(false);
       }
+    } catch (error) {
+      console.error("Capture error:", error);
+      Alert.alert("Error", "Failed to take photo");
+      setIsCapturing(false);
+    }
+  };
 
-      setFrontImage(frontImageUri);
-      setCaptureStep("uploading");
+  const handlePost = async () => {
+    if (!backImage || !frontImage) return;
+    setCaptureStep("uploading");
+    await processAndUpload(backImage, frontImage);
+  };
 
-      // Upload both images
+  const handleRetake = () => {
+    setBackImage(null);
+    setFrontImage(null);
+    setCaptureStep("back");
+  };
+
+  const processAndUpload = async (backUri: string, frontUri: string) => {
+    if (!user) return;
+
+    try {
       const timestamp = Date.now();
       const backFileName = `${user.id}/${habitId}/back_${timestamp}.jpg`;
       const frontFileName = `${user.id}/${habitId}/front_${timestamp}.jpg`;
 
       setUploadProgress(25);
-      const backUrl = await uploadImage(backImageUri, backFileName);
+      const backUrl = await uploadImage(backUri, backFileName);
 
       setUploadProgress(50);
-      const frontUrl = await uploadImage(frontImageUri, frontFileName);
+      const frontUrl = await uploadImage(frontUri, frontFileName);
 
       setUploadProgress(75);
 
       if (backUrl && frontUrl) {
-        // Create completion record with both images
         const completionDate = selectedDate
           ? new Date(selectedDate)
           : new Date();
         const { error } = await supabase.from("habit_completions").insert({
           user_id: user.id,
           habit_id: habitId,
-          image_url: backUrl, // Primary image (back camera)
-          front_image_url: frontUrl, // Secondary image (front camera)
+          image_url: backUrl,
+          front_image_url: frontUrl,
           completed_at: completionDate.toISOString(),
         });
 
@@ -208,87 +212,116 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
     } finally {
       if (captureStep !== "complete") {
         setIsCapturing(false);
-        setCaptureStep("ready");
-        setBackImage(null);
-        setFrontImage(null);
-        setUploadProgress(0);
       }
     }
   };
 
-  const getStepText = () => {
-    switch (captureStep) {
-      case "ready":
-        return "Tap to capture both cameras";
-      case "back":
-        return "Taking back camera photo...";
-      case "front":
-        return "Taking front camera photo...";
-      case "uploading":
-        return `Uploading... ${uploadProgress}%`;
-      case "complete":
-        return "Dual capture complete!";
-      default:
-        return "";
-    }
-  };
+  if (!permission) {
+    return <View style={styles.container} />;
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>
+          We need your permission to show the camera
+        </Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.button}>
+          <Text style={styles.buttonText}>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          disabled={isCapturing}
-        >
-          <Text style={styles.backButtonText}>✕</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Dual Camera</Text>
-      </View>
-
-      <View style={styles.previewContainer}>
-        {backImage && (
-          <View style={styles.imagePreview}>
-            <Text style={styles.imageLabel}>Back Camera</Text>
-            <Image source={{ uri: backImage }} style={styles.previewImage} />
-          </View>
-        )}
-
-        {frontImage && (
-          <View style={styles.imagePreview}>
-            <Text style={styles.imageLabel}>Front Camera</Text>
-            <Image source={{ uri: frontImage }} style={styles.previewImage} />
-          </View>
-        )}
-      </View>
-
-      <View style={styles.statusContainer}>
-        <Text style={styles.statusText}>{getStepText()}</Text>
-        {isCapturing && (
-          <ActivityIndicator
-            size="large"
-            color="#007AFF"
-            style={styles.loader}
+      {/* Camera View - Only visible during capture steps */}
+      {(captureStep === "back" || captureStep === "front") && (
+        <View style={styles.cameraContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing={captureStep === "back" ? "back" : "front"}
+            ref={cameraRef}
+            zoom={0.1}
           />
-        )}
-      </View>
+        </View>
+      )}
 
-      <View style={styles.captureContainer}>
-        <TouchableOpacity
-          style={[
-            styles.captureButton,
-            isCapturing && styles.captureButtonDisabled,
-          ]}
-          onPress={startDualCapture}
-          disabled={isCapturing}
-        >
-          <View style={styles.captureButtonInner} />
-        </TouchableOpacity>
-      </View>
+      {/* Top Label - Back/Front indicator */}
+      {(captureStep === "back" || captureStep === "front") && (
+        <View style={styles.topLabelContainer} pointerEvents="none">
+          <Text style={styles.cameraLabel}>
+            {captureStep === "back" ? "Back" : "Front"}
+          </Text>
+        </View>
+      )}
 
-      <Text style={styles.instructionText}>
-        This will take photos from both cameras sequentially
-      </Text>
+      {/* Preview View */}
+      {captureStep === "preview" && backImage && frontImage && (
+        <View style={styles.previewScreen}>
+          {/* Main Image Container - Centered like Camera */}
+          <View style={styles.cameraContainer}>
+            <Image
+              source={{ uri: backImage }}
+              style={styles.previewBackImage}
+            />
+            <Image
+              source={{ uri: frontImage }}
+              style={styles.frontImageOverlay}
+            />
+          </View>
+
+          {/* Controls Container for Post Button - Same position as Shutter */}
+          <View style={styles.controlsContainer}>
+            <TouchableOpacity style={styles.postButton} onPress={handlePost}>
+              <Text style={styles.postButtonText}>Post</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Status / Uploading View */}
+      {(captureStep === "uploading" || captureStep === "complete") && (
+        <View style={styles.uploadContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.statusText}>
+            {captureStep === "uploading"
+              ? `Uploading... ${uploadProgress}%`
+              : "Dual capture complete!"}
+          </Text>
+        </View>
+      )}
+
+      {/* Close/Back Button */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => {
+          if (captureStep === "preview") {
+            handleRetake();
+          } else {
+            navigation.goBack();
+          }
+        }}
+        disabled={captureStep === "uploading"}
+      >
+        <Text style={styles.backButtonText}>✕</Text>
+      </TouchableOpacity>
+
+      {/* Shutter Button */}
+      {(captureStep === "back" || captureStep === "front") && (
+        <View style={styles.controlsContainer}>
+          <TouchableOpacity
+            style={[
+              styles.shutterButton,
+              isCapturing && styles.shutterButtonDisabled,
+            ]}
+            onPress={handleCapture}
+            disabled={isCapturing}
+          >
+            <View style={styles.shutterButtonInner} />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -297,14 +330,36 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
+    justifyContent: "center",
   },
-  header: {
-    flexDirection: "row",
+  cameraContainer: {
+    width: "100%",
+    aspectRatio: 2 / 3,
+    alignSelf: "center",
+  },
+  topLabelContainer: {
+    position: "absolute",
+    top: 60,
+    left: 0,
+    right: 0,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    zIndex: 20,
+  },
+  text: {
+    color: "#fff",
+    textAlign: "center",
+  },
+  button: {
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    padding: 10,
+    margin: 20,
+    borderRadius: 5,
+  },
+  buttonText: {
+    color: "#fff",
   },
   backButton: {
     position: "absolute",
@@ -313,61 +368,40 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 50,
   },
   backButtonText: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
   },
-  title: {
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    zIndex: 5,
+    paddingTop: 0,
+  },
+  cameraLabel: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: "bold",
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 10,
   },
-  previewContainer: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "space-around",
+  controlsContainer: {
+    position: "absolute",
+    bottom: 50,
+    left: 0,
+    right: 0,
     alignItems: "center",
-    paddingHorizontal: 20,
+    zIndex: 10,
   },
-  imagePreview: {
-    alignItems: "center",
-  },
-  imageLabel: {
-    color: "#fff",
-    fontSize: 14,
-    marginBottom: 10,
-    fontWeight: "500",
-  },
-  previewImage: {
-    width: 150,
-    height: 200,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#007AFF",
-  },
-  statusContainer: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  statusText: {
-    color: "#fff",
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  loader: {
-    marginTop: 10,
-  },
-  captureContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  captureButton: {
+  shutterButton: {
     width: 80,
     height: 80,
     borderRadius: 40,
@@ -375,23 +409,62 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,
-    borderColor: "#007AFF",
+    borderColor: "rgba(255,255,255,0.3)",
   },
-  captureButtonDisabled: {
+  shutterButtonDisabled: {
     opacity: 0.5,
   },
-  captureButtonInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#007AFF",
+  shutterButtonInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#000",
   },
-  instructionText: {
+  uploadContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statusText: {
     color: "#fff",
-    fontSize: 14,
-    textAlign: "center",
-    paddingHorizontal: 40,
-    paddingBottom: 40,
-    opacity: 0.7,
+    fontSize: 18,
+    marginTop: 20,
+  },
+  previewScreen: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  previewBackImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  frontImageOverlay: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 80,
+    aspectRatio: 2 / 3,
+    resizeMode: "cover",
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  postButton: {
+    width: 200,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: "#007AFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  postButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });

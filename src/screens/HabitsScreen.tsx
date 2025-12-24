@@ -8,20 +8,23 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useAuth } from "../contexts/AuthContext";
-import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../services/supabase";
 import { Habit, HabitStats, HabitCompletion } from "../types";
 import { RootStackParamList } from "../types";
 import { useFocusEffect } from "@react-navigation/native";
 import HabitCalendar from "../components/HabitCalendar";
 import ImageModal from "../components/ImageModal";
+import { useCollapsibleHeader } from "../hooks/useCollapsibleHeader";
 
 type HabitsScreenNavigationProp = StackNavigationProp<RootStackParamList>;
+
+const HEADER_HEIGHT = 120;
 
 interface HabitWithStats extends Habit {
   stats: HabitStats;
@@ -38,6 +41,8 @@ const HabitsScreen: React.FC = () => {
     useState<HabitCompletion | null>(null);
   const { user } = useAuth();
   const navigation = useNavigation<HabitsScreenNavigationProp>();
+  const { scrollY, translateY, handleScroll } =
+    useCollapsibleHeader(HEADER_HEIGHT);
 
   // useEffect(() => {
   //   if (user) {
@@ -285,9 +290,11 @@ const HabitsScreen: React.FC = () => {
   };
 
   const renderHabitItem = ({ item }: { item: HabitWithStats }) => (
-    <LinearGradient
-      colors={[`${item.color}FF`, `${item.color}B3`]}
-      style={styles.habitCard}
+    <View
+      style={[
+        styles.habitCard,
+        { backgroundColor: "#fff", borderWidth: 1, borderColor: "#f0f0f0" },
+      ]}
     >
       <TouchableOpacity
         style={styles.habitHeader}
@@ -297,9 +304,11 @@ const HabitsScreen: React.FC = () => {
         <View style={styles.habitInfo}>
           <View style={styles.titleRow}>
             <Text style={styles.habitTitle}>{item.title}</Text>
-            <Text style={styles.streakDisplay}>
-              {item.stats.current_streak} 🔥
-            </Text>
+            {item.stats.current_streak > 0 && (
+              <Text style={styles.streakDisplay}>
+                {item.stats.current_streak} 🔥
+              </Text>
+            )}
           </View>
           {item.description && (
             <Text style={styles.habitDescription}>{item.description}</Text>
@@ -339,7 +348,7 @@ const HabitsScreen: React.FC = () => {
           showMonthNavigation={false}
         />
       </View>
-    </LinearGradient>
+    </View>
   );
 
   if (loading) {
@@ -352,7 +361,19 @@ const HabitsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            transform: [{ translateY }],
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 10,
+          },
+        ]}
+      >
         <Text style={styles.headerTitle}>My Habits</Text>
         <TouchableOpacity
           style={styles.addButton}
@@ -360,13 +381,15 @@ const HabitsScreen: React.FC = () => {
         >
           <Ionicons name="add" size={24} color="#000" />
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       <View style={styles.contentContainer}>
         {/* Habits Content - Full width */}
         <View style={styles.habitsContainer}>
           {habits.length === 0 ? (
-            <View style={styles.emptyContainer}>
+            <View
+              style={[styles.emptyContainer, { paddingTop: HEADER_HEIGHT }]}
+            >
               <Ionicons
                 name="checkmark-circle-outline"
                 size={64}
@@ -384,14 +407,23 @@ const HabitsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           ) : (
-            <FlatList
+            <Animated.FlatList
               data={habits}
               renderItem={renderHabitItem}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContainer}
+              contentContainerStyle={[
+                styles.listContainer,
+                { paddingTop: HEADER_HEIGHT + 20 },
+              ]}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  progressViewOffset={HEADER_HEIGHT}
+                />
               }
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
             />
           )}
         </View>
@@ -430,14 +462,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    backgroundColor: "transparent",
-    borderBottomWidth: 0,
-    borderBottomColor: "transparent",
+    backgroundColor: "#fff",
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: "bold",
-    color: "#000",
+    color: "#333",
   },
   addButton: {
     backgroundColor: "rgba(0, 0, 0, 0.05)",
@@ -454,7 +484,7 @@ const styles = StyleSheet.create({
   },
   habitCard: {
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
     shadowColor: "rgba(0, 0, 0, 0.1)",
     shadowOffset: { width: 0, height: 8 },
@@ -479,7 +509,7 @@ const styles = StyleSheet.create({
   streakDisplay: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: "#333",
   },
   habitActions: {
     flexDirection: "row",
@@ -492,12 +522,12 @@ const styles = StyleSheet.create({
   habitTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#fff",
+    color: "#333",
     marginBottom: 4,
   },
   habitDescription: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: "#666",
   },
   completeButton: {
     padding: 8,
@@ -560,7 +590,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   calendarContainer: {
-    marginTop: 12,
+    marginTop: 8,
   },
 });
 
