@@ -52,7 +52,7 @@ export interface HabitStats {
 
 export interface FeedItem {
   id: string;
-  user: Pick<User, "id" | "username">;
+  user: Pick<User, "id" | "username" | "avatar_url">;
   habit: Pick<Habit, "id" | "title" | "color">;
   completion: HabitCompletion;
   created_at: string;
@@ -117,7 +117,7 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   CreateHabit: undefined;
-  HabitDetail: { habitId: string };
+  HabitDetail: { habitId: string; initialData?: any };
   Camera: { habitId: string; selectedDate?: string };
   DualCamera: { habitId: string; selectedDate?: string };
   Profile: undefined;

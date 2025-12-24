@@ -1,0 +1,11 @@
+- fix cache
+- redesign add habits
+- add icon for each habit
+- develop the likes and comments features
+- delete account feature
+- deal with forget password
+- change habit name after edit
+- ability to delete snaps and posts
+- add note to completion
+
+

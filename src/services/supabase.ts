@@ -26,4 +26,5 @@ export const TABLES = {
 // Storage bucket names
 export const BUCKETS = {
   HABIT_IMAGES: "habit-images",
+  AVATARS: "avatars",
 } as const;

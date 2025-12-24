@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,15 +6,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
+  Image,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
 import { supabase } from "../services/supabase";
-import { User, Habit, HabitStats } from "../types";
+import { User, Habit, HabitStats, HabitCompletion } from "../types";
 import { RootStackParamList } from "../types";
-import HabitCalendar from "../components/HabitCalendar";
+import DaySlideshow from "../components/DaySlideshow";
+import DayDetailModal from "../components/DayDetailModal";
 import { useAuth } from "../contexts/AuthContext";
 
 type UserProfileScreenRouteProp = RouteProp<RootStackParamList, "UserProfile">;
@@ -25,7 +28,7 @@ type UserProfileScreenNavigationProp = StackNavigationProp<
 
 interface HabitWithStats extends Habit {
   stats: HabitStats;
-  completions: any[];
+  completions: HabitCompletion[];
 }
 
 const UserProfileScreen: React.FC = () => {
@@ -41,7 +44,110 @@ const UserProfileScreen: React.FC = () => {
     "none" | "pending" | "friends" | "sent"
   >("none");
   const [sendingRequest, setSendingRequest] = useState(false);
+  const [dateList, setDateList] = useState<string[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedCompletions, setSelectedCompletions] = useState<
+    HabitCompletion[]
+  >([]);
+  const [completionsMap, setCompletionsMap] = useState<
+    Record<string, HabitCompletion[]>
+  >({});
   const { user: currentUser } = useAuth();
+
+  const toLocalDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const stats = useMemo(() => {
+    if (!user?.created_at) return null;
+
+    const allCompletions = habits.flatMap((h) => h.completions);
+    const uniqueDates = new Set(
+      allCompletions.map((c) => toLocalDateString(new Date(c.completed_at)))
+    );
+    const daysActive = uniqueDates.size;
+
+    const sortedDates = Array.from(uniqueDates).sort();
+    let maxStreak = 0;
+    let currentStreak = 0;
+    let lastDateStr = "";
+
+    sortedDates.forEach((dateStr) => {
+      if (lastDateStr) {
+        const curr = new Date(dateStr);
+        const prev = new Date(lastDateStr);
+        const diffTime = Math.abs(curr.getTime() - prev.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) {
+          currentStreak++;
+        } else {
+          currentStreak = 1;
+        }
+      } else {
+        currentStreak = 1;
+      }
+      if (currentStreak > maxStreak) maxStreak = currentStreak;
+      lastDateStr = dateStr;
+    });
+
+    const joinDate = new Date(user.created_at);
+    const now = new Date();
+    const totalDays = Math.max(
+      1,
+      Math.floor((now.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24)) +
+        1
+    );
+    const percentage = Math.round((daysActive / totalDays) * 100);
+
+    return {
+      daysActive,
+      longestStreak: maxStreak,
+      habitCount: habits.length,
+      percentage,
+    };
+  }, [habits, user]);
+
+  useEffect(() => {
+    const map: Record<string, HabitCompletion[]> = {};
+    habits.forEach((habit) => {
+      habit.completions.forEach((completion) => {
+        const dateStr = toLocalDateString(new Date(completion.completed_at));
+        if (!map[dateStr]) {
+          map[dateStr] = [];
+        }
+        map[dateStr].push(completion);
+      });
+    });
+    setCompletionsMap(map);
+  }, [habits]);
+
+  const generateDates = () => {
+    if (user?.created_at) {
+      const dates: string[] = [];
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      const joinDate = new Date(user.created_at);
+      joinDate.setHours(0, 0, 0, 0);
+
+      let currentDate = new Date(now);
+
+      // Generate dates from today backwards to join date
+      while (currentDate >= joinDate) {
+        dates.push(toLocalDateString(currentDate));
+        currentDate.setDate(currentDate.getDate() - 1);
+      }
+      setDateList(dates);
+    }
+  };
+
+  useEffect(() => {
+    generateDates();
+  }, [user?.created_at]);
 
   useEffect(() => {
     fetchUserProfile();
@@ -373,38 +479,115 @@ const UserProfileScreen: React.FC = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    generateDates();
     fetchUserProfile();
   };
 
-  const renderHabitItem = ({ item }: { item: HabitWithStats }) => (
-    <View style={styles.habitCard}>
-      <View style={styles.habitHeader}>
-        <View style={styles.habitInfo}>
-          <View style={styles.titleRow}>
-            <Text style={styles.habitTitle}>{item.title}</Text>
-            <Text style={styles.streakDisplay}>
-              {item.stats.current_streak} 🔥
-            </Text>
-          </View>
-          {item.description && (
-            <Text style={styles.habitDescription}>{item.description}</Text>
-          )}
-        </View>
-      </View>
+  const getCompletionsForDate = (dateStr: string) => {
+    return completionsMap[dateStr] || [];
+  };
 
-      <View style={styles.calendarContainer}>
-        <HabitCalendar
-          habitId={item.id}
-          habitTitle={item.title}
-          habitColor={item.color}
-          completions={item.completions}
-          compact={true}
-          hideHeader={true}
-          showMonthNavigation={false}
+  const getImagesForDate = (dateStr: string) => {
+    return getCompletionsForDate(dateStr)
+      .map((c) => c.image_url!)
+      .filter(Boolean);
+  };
+
+  const handleDayPress = (dateStr: string) => {
+    const completions = getCompletionsForDate(dateStr);
+    if (completions.length > 0) {
+      setSelectedCompletions(completions);
+      setModalVisible(true);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedCompletions([]);
+  };
+
+  const CELL_WIDTH = Dimensions.get("window").width / 7;
+
+  const renderDayCell = ({ item: dateStr }: { item: string }) => {
+    const images = getImagesForDate(dateStr);
+    // Parse date manually to ensure local time is used
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const dayNumber = day;
+
+    // Check if date is in the future
+    const todayStr = toLocalDateString(new Date());
+    const isFuture = dateStr > todayStr;
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.dayCell,
+          { width: CELL_WIDTH, height: CELL_WIDTH * 1.2 },
+        ]}
+        onPress={() => handleDayPress(dateStr)}
+        activeOpacity={0.8}
+        disabled={isFuture || images.length === 0}
+      >
+        {!isFuture && (
+          <>
+            {images.length > 0 ? (
+              <View style={StyleSheet.absoluteFill}>
+                <DaySlideshow
+                  imageUrls={images}
+                  interval={3000}
+                  compact={true}
+                />
+                <View style={styles.cellOverlay} />
+              </View>
+            ) : (
+              <View style={styles.emptyCellBackground} />
+            )}
+            <Text
+              style={[
+                styles.dayNumber,
+                images.length > 0 && styles.dayNumberLight,
+                day === 1 && { fontWeight: "bold" },
+              ]}
+            >
+              {day === 1
+                ? [
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                  ][month - 1]
+                : dayNumber}
+            </Text>
+          </>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderFooter = () => {
+    if (!user) return null;
+    return (
+      <View style={styles.footer}>
+        <Ionicons
+          name="calendar-outline"
+          size={20}
+          color="#666"
+          style={styles.footerIcon}
         />
+        <Text style={styles.footerText}>
+          Joined on {new Date(user.created_at).toLocaleDateString()}
+        </Text>
       </View>
-    </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -422,6 +605,58 @@ const UserProfileScreen: React.FC = () => {
     );
   }
 
+  const renderHeader = () => {
+    if (!user) return null;
+    return (
+      <>
+        <View style={styles.profileSection}>
+          {user.avatar_url ? (
+            <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={40} color="#666" />
+            </View>
+          )}
+          <Text style={styles.username}>{user.username}</Text>
+          <Text style={styles.memberSince}>
+            Member since {new Date(user.created_at).toLocaleDateString()}
+          </Text>
+          {renderFriendButton()}
+
+          {stats && (
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{stats.daysActive}</Text>
+                <Text style={styles.statLabel}>Days Active</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{stats.longestStreak}</Text>
+                <Text style={styles.statLabel}>Longest Streak</Text>
+              </View>
+
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{stats.percentage}%</Text>
+                <Text style={styles.statLabel}>Consistency</Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </>
+    );
+  };
+
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="lock-closed-outline" size={48} color="#ccc" />
+      <Text style={styles.emptyTitle}>No Public Habits</Text>
+      <Text style={styles.emptySubtitle}>
+        This user hasn't shared any habits publicly yet.
+      </Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -435,41 +670,26 @@ const UserProfileScreen: React.FC = () => {
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.profileSection}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={40} color="#666" />
-        </View>
-        <Text style={styles.username}>{user.username}</Text>
-        <Text style={styles.memberSince}>
-          Member since {new Date(user.created_at).toLocaleDateString()}
-        </Text>
-        {renderFriendButton()}
-      </View>
-
-      <View style={styles.habitsSection}>
-        <Text style={styles.sectionTitle}>Public Habits ({habits.length})</Text>
-
-        {habits.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="lock-closed-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyTitle}>No Public Habits</Text>
-            <Text style={styles.emptySubtitle}>
-              This user hasn't shared any habits publicly yet.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={habits}
-            renderItem={renderHabitItem}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContainer}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            showsVerticalScrollIndicator={false}
-          />
-        )}
-      </View>
+      <FlatList
+        data={dateList}
+        renderItem={renderDayCell}
+        keyExtractor={(item) => item}
+        numColumns={7}
+        key={7}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      />
+      <DayDetailModal
+        visible={modalVisible}
+        completions={selectedCompletions}
+        onClose={handleCloseModal}
+      />
     </View>
   );
 };
@@ -477,7 +697,7 @@ const UserProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#fff",
   },
   centerContainer: {
     flex: 1,
@@ -575,6 +795,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     marginBottom: 16,
+    marginHorizontal: 20,
   },
   listContainer: {
     paddingBottom: 20,
@@ -584,6 +805,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    marginHorizontal: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -637,6 +859,92 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
     paddingHorizontal: 40,
+  },
+  calendarHeaderRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    paddingBottom: 8,
+    marginBottom: 0,
+  },
+  headerCell: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerCellText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#999",
+  },
+  dayCell: {
+    borderWidth: 0.5,
+    borderColor: "#eee",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 4,
+    overflow: "hidden",
+  },
+  emptyCellBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#f8f9fa",
+  },
+  cellOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  dayNumber: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "rgba(51, 51, 51, 0.3)",
+    zIndex: 2,
+  },
+  dayNumberLight: {
+    color: "rgba(255, 255, 255, 0.9)",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  footer: {
+    padding: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    opacity: 0.7,
+  },
+  footerIcon: {
+    marginRight: 8,
+  },
+  footerText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 24,
+    width: "100%",
+    paddingHorizontal: 20,
+  },
+  statItem: {
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "500",
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: "#eee",
   },
 });
 

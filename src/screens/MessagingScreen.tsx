@@ -10,7 +10,9 @@ import {
   Platform,
   Alert,
   Image,
+  Keyboard,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -45,62 +47,88 @@ const MessagingScreen: React.FC = () => {
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  const fetchMessages = useCallback(async () => {
-    if (!user) return;
+  const fetchMessages = useCallback(
+    async (useCache = false) => {
+      if (!user) return;
 
-    try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .or(
-          `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-        )
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-
-      // Fetch sender details separately
-      let messagesWithSenders = [];
-      if (data && data.length > 0) {
-        const senderIds = [...new Set(data.map((msg) => msg.sender_id))];
-        const { data: senders } = await supabase
-          .from("users")
-          .select("id, username, avatar_url")
-          .in("id", senderIds);
-
-        messagesWithSenders = data.map((message) => ({
-          ...message,
-          sender: senders?.find(
-            (sender) => sender.id === message.sender_id
-          ) || { id: message.sender_id, username: "Unknown User" },
-        }));
+      if (useCache) {
+        try {
+          const cached = await AsyncStorage.getItem(
+            `messages_${user.id}_${friendId}`
+          );
+          if (cached) {
+            setMessages(JSON.parse(cached));
+            setLoading(false);
+            // Scroll to bottom after loading from cache
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: false });
+            }, 100);
+          }
+        } catch (e) {
+          console.error("Error loading cached messages:", e);
+        }
       }
 
-      setMessages(messagesWithSenders || []);
-
-      // Mark messages from friend as read
-      const unreadMessages =
-        data
-          ?.filter((msg) => msg.sender_id === friendId && !msg.read)
-          .map((msg) => msg.id) || [];
-
-      if (unreadMessages.length > 0) {
-        await supabase
+      try {
+        const { data, error } = await supabase
           .from("messages")
-          .update({ read: true })
-          .in("id", unreadMessages);
+          .select("*")
+          .or(
+            `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
+          )
+          .order("created_at", { ascending: true });
+
+        if (error) throw error;
+
+        // Fetch sender details separately
+        let messagesWithSenders = [];
+        if (data && data.length > 0) {
+          const senderIds = [...new Set(data.map((msg) => msg.sender_id))];
+          const { data: senders } = await supabase
+            .from("users")
+            .select("id, username, avatar_url")
+            .in("id", senderIds);
+
+          messagesWithSenders = data.map((message) => ({
+            ...message,
+            sender: senders?.find(
+              (sender) => sender.id === message.sender_id
+            ) || { id: message.sender_id, username: "Unknown User" },
+          }));
+        }
+
+        setMessages(messagesWithSenders || []);
+        await AsyncStorage.setItem(
+          `messages_${user.id}_${friendId}`,
+          JSON.stringify(messagesWithSenders)
+        );
+
+        // Mark messages from friend as read
+        const unreadMessages =
+          data
+            ?.filter((msg) => msg.sender_id === friendId && !msg.read)
+            .map((msg) => msg.id) || [];
+
+        if (unreadMessages.length > 0) {
+          await supabase
+            .from("messages")
+            .update({ read: true })
+            .in("id", unreadMessages);
+        }
+      } catch (error) {
+        console.error("Error fetching messages:", error);
+        Alert.alert("Error", "Failed to load messages");
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      Alert.alert("Error", "Failed to load messages");
-    } finally {
-      setLoading(false);
-    }
-  }, [user, friendId]);
+    },
+    [user, friendId]
+  );
 
   const sendMessage = async () => {
     if (!user || !newMessage.trim()) return;
 
+    Keyboard.dismiss();
     setSending(true);
     try {
       const { error } = await supabase.from("messages").insert({
@@ -148,23 +176,14 @@ const MessagingScreen: React.FC = () => {
   }, [user, friendId, fetchMessages]);
 
   useEffect(() => {
+    // We are using a custom header now
     navigation.setOptions({
-      title: friendName,
-      headerRight: () => (
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() =>
-            navigation.navigate("UserProfile", { userId: friendId })
-          }
-        >
-          <Ionicons name="person-outline" size={24} color="#007AFF" />
-        </TouchableOpacity>
-      ),
+      headerShown: false,
     });
-  }, [navigation, friendName, friendId]);
+  }, [navigation]);
 
   useEffect(() => {
-    fetchMessages();
+    fetchMessages(true);
     const cleanup = setupRealtimeSubscription();
     return cleanup;
   }, [fetchMessages, setupRealtimeSubscription]);
@@ -206,12 +225,18 @@ const MessagingScreen: React.FC = () => {
         ]}
       >
         {!isMyMessage && (
-          <Image
-            source={{
-              uri: item.sender.avatar_url || "https://via.placeholder.com/30",
-            }}
-            style={styles.messageAvatar}
-          />
+          <>
+            {item.sender.avatar_url ? (
+              <Image
+                source={{ uri: item.sender.avatar_url }}
+                style={styles.messageAvatar}
+              />
+            ) : (
+              <View style={[styles.messageAvatar, styles.placeholderAvatar]}>
+                <Ionicons name="person" size={16} color="#666" />
+              </View>
+            )}
+          </>
         )}
 
         <View
@@ -237,6 +262,22 @@ const MessagingScreen: React.FC = () => {
             {formatTime(item.created_at)}
           </Text>
         </View>
+        {isMyMessage && (
+          <>
+            {user?.avatar_url ? (
+              <Image
+                source={{ uri: user.avatar_url }}
+                style={styles.messageAvatarRight}
+              />
+            ) : (
+              <View
+                style={[styles.messageAvatarRight, styles.placeholderAvatar]}
+              >
+                <Ionicons name="person" size={16} color="#666" />
+              </View>
+            )}
+          </>
+        )}
       </View>
     );
   };
@@ -254,6 +295,23 @@ const MessagingScreen: React.FC = () => {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{friendName}</Text>
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("UserProfile", { userId: friendId })
+          }
+        >
+          <Ionicons name="person-outline" size={24} color="#007AFF" />
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -303,16 +361,35 @@ const MessagingScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#fff",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e1e5e9",
+    backgroundColor: "#fff",
+  },
+  headerTitle: {
+    color: "#333",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  backButton: {
+    padding: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#000",
+    backgroundColor: "#fff",
   },
   loadingText: {
-    color: "#fff",
+    color: "#666",
     fontSize: 16,
   },
   headerButton: {
@@ -342,6 +419,17 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     marginRight: 8,
   },
+  messageAvatarRight: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginLeft: 8,
+  },
+  placeholderAvatar: {
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   messageBubble: {
     maxWidth: "75%",
     paddingHorizontal: 12,
@@ -353,7 +441,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   theirMessageBubble: {
-    backgroundColor: "#1C1C1E",
+    backgroundColor: "#E5E5EA",
     borderBottomLeftRadius: 4,
   },
   messageText: {
@@ -364,7 +452,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   theirMessageText: {
-    color: "#fff",
+    color: "#000",
   },
   messageTime: {
     fontSize: 12,
@@ -392,17 +480,17 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: "#333",
-    backgroundColor: "#000",
+    borderTopColor: "#e1e5e9",
+    backgroundColor: "#fff",
   },
   textInput: {
     flex: 1,
-    backgroundColor: "#1C1C1E",
+    backgroundColor: "#f2f2f7",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     marginRight: 8,
-    color: "#fff",
+    color: "#000",
     fontSize: 16,
     maxHeight: 100,
   },
@@ -410,7 +498,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#1C1C1E",
+    backgroundColor: "#f2f2f7",
     justifyContent: "center",
     alignItems: "center",
   },

@@ -10,6 +10,7 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { HabitCompletion } from "../types";
+import { CachedImage } from "./CachedImage";
 
 const { width } = Dimensions.get("window");
 
@@ -61,12 +62,12 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 {completion.front_image_url ? (
                   // Dual camera layout - overlaid like calendar thumbnail
                   <View style={styles.dualImageLayout}>
-                    <Image
+                    <CachedImage
                       source={{ uri: completion.image_url! }}
                       style={styles.mainImage}
                       resizeMode="cover"
                     />
-                    <Image
+                    <CachedImage
                       source={{ uri: completion.front_image_url }}
                       style={styles.frontImageOverlay}
                       resizeMode="cover"
@@ -75,7 +76,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 ) : (
                   // Single camera layout
                   <View style={styles.singleImageContainer}>
-                    <Image
+                    <CachedImage
                       source={{ uri: completion.image_url! }}
                       style={styles.singleImage}
                       resizeMode="cover"

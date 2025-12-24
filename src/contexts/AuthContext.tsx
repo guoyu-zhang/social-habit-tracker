@@ -15,6 +15,7 @@ interface AuthContextType extends AuthState {
   ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   session: Session | null;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -146,6 +147,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     signIn,
     signUp,
     signOut,
+    refreshUser: async () => {
+      if (user?.id) {
+        await fetchUserProfile(user.id);
+      }
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

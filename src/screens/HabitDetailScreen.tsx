@@ -17,6 +17,7 @@ import { supabase, BUCKETS } from "../services/supabase";
 import { Habit, HabitStats, HabitCompletion } from "../types";
 import { RootStackParamList } from "../types";
 import { useFocusEffect } from "@react-navigation/native";
+import { useHabits } from "../contexts/HabitContext";
 import HabitCalendar from "../components/HabitCalendar";
 import ImageModal from "../components/ImageModal";
 
@@ -37,18 +38,28 @@ const HabitDetailScreen: React.FC = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const { deleteHabit: deleteHabitFromContext } = useHabits();
 
   const route = useRoute<HabitDetailScreenRouteProp>();
   const navigation = useNavigation<HabitDetailScreenNavigationProp>();
-  const { habitId } = route.params;
+  const { habitId, initialData } = route.params;
 
-  // useEffect(() => {
-  //   fetchHabitDetails();
-  // }, [habitId]);
+  useEffect(() => {
+    if (initialData) {
+      setHabit(initialData);
+      setStats(initialData.stats);
+      setCompletions(initialData.completions);
+      setLoading(false);
+    }
+  }, [initialData]);
 
   useFocusEffect(
     React.useCallback(() => {
       if (habitId) {
+        // If we have initial data, we don't need to show loading, but we still want to refresh
+        if (!initialData) {
+          setLoading(true);
+        }
         fetchHabitDetails();
       }
     }, [habitId])
@@ -234,77 +245,12 @@ const HabitDetailScreen: React.FC = () => {
     );
   };
 
-  const deleteHabit = async () => {
-    try {
-      // First, fetch all habit completions to get image URLs
-      const { data: completions, error: completionsError } = await supabase
-        .from("habit_completions")
-        .select("image_url, front_image_url")
-        .eq("habit_id", habitId);
+  const deleteHabit = () => {
+    // 1. Navigate back immediately
+    navigation.goBack();
 
-      if (completionsError) throw completionsError;
-
-      // Extract all image URLs that need to be deleted
-      const imageUrls: string[] = [];
-      completions?.forEach((completion) => {
-        if (completion.image_url) {
-          // Extract file path from the full URL
-          const urlParts = completion.image_url.split("/");
-          const fileName = urlParts[urlParts.length - 1];
-          const userFolder = urlParts[urlParts.length - 2];
-          const habitFolder = urlParts[urlParts.length - 3];
-          imageUrls.push(`${habitFolder}/${userFolder}/${fileName}`);
-        }
-        if (completion.front_image_url) {
-          // Extract file path from the full URL for front camera image
-          const urlParts = completion.front_image_url.split("/");
-          const fileName = urlParts[urlParts.length - 1];
-          const userFolder = urlParts[urlParts.length - 2];
-          const habitFolder = urlParts[urlParts.length - 3];
-          imageUrls.push(`${habitFolder}/${userFolder}/${fileName}`);
-        }
-      });
-
-      // Delete all images from storage
-      if (imageUrls.length > 0) {
-        const { error: storageError } = await supabase.storage
-          .from(BUCKETS.HABIT_IMAGES)
-          .remove(imageUrls);
-
-        if (storageError) {
-          console.warn(
-            "Some images could not be deleted from storage:",
-            storageError
-          );
-          // Continue with habit deletion even if some images fail to delete
-        }
-      }
-
-      // Delete all habit completions (this should cascade, but being explicit)
-      const { error: completionDeleteError } = await supabase
-        .from("habit_completions")
-        .delete()
-        .eq("habit_id", habitId);
-
-      if (completionDeleteError) throw completionDeleteError;
-
-      // Finally, delete the habit itself
-      const { error: habitDeleteError } = await supabase
-        .from("habits")
-        .delete()
-        .eq("id", habitId);
-
-      if (habitDeleteError) throw habitDeleteError;
-
-      Alert.alert(
-        "Success",
-        "Habit and all associated data deleted successfully",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
-      );
-    } catch (error) {
-      console.error("Error deleting habit:", error);
-      Alert.alert("Error", "Failed to delete habit. Please try again.");
-    }
+    // 2. Trigger deletion in context (optimistic update + background delete)
+    deleteHabitFromContext(habitId);
   };
 
   const handleTogglePrivacy = async () => {
@@ -338,13 +284,6 @@ const HabitDetailScreen: React.FC = () => {
         "Failed to update privacy setting. Please try again."
       );
     }
-  };
-
-  const handleCompleteHabit = () => {
-    if (!habit) return;
-
-    // Navigate directly to dual camera
-    navigation.navigate("DualCamera", { habitId: habit.id });
   };
 
   if (loading || !habit || !stats) {
@@ -416,6 +355,7 @@ const HabitDetailScreen: React.FC = () => {
             onDayPress={handleDayPress}
             hideHeader={true}
             showMonthNavigation={true}
+            compact={true}
           />
         </View>
 
@@ -468,14 +408,6 @@ const HabitDetailScreen: React.FC = () => {
         </View>
 
         <View style={styles.actionsContainer}>
-          <TouchableOpacity
-            style={styles.completeButton}
-            onPress={handleCompleteHabit}
-          >
-            <Ionicons name="camera" size={20} color="#fff" />
-            <Text style={styles.completeButtonText}>Complete Habit</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={handleDeleteHabit}
@@ -662,21 +594,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  completeButton: {
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  completeButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
+
   deleteButton: {
     backgroundColor: "#fff",
     borderRadius: 8,
@@ -698,7 +616,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
   },
   modalOverlay: {
     flex: 1,

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { HabitCompletion } from "../types";
+import { CachedImage } from "./CachedImage";
 
 interface HabitCalendarProps {
   habitId: string;
@@ -20,6 +21,9 @@ interface HabitCalendarProps {
   compact?: boolean;
   hideHeader?: boolean;
   showMonthNavigation?: boolean;
+  isUploading?: boolean;
+  uploadProgress?: number;
+  uploadingImages?: { backUri: string; frontUri: string };
 }
 
 const HabitCalendar: React.FC<HabitCalendarProps> = ({
@@ -32,6 +36,9 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
   compact = false,
   hideHeader = false,
   showMonthNavigation = true,
+  isUploading = false,
+  uploadProgress = 0,
+  uploadingImages,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarGridWidth, setCalendarGridWidth] = useState(0);
@@ -138,6 +145,76 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
     );
   };
 
+  const renderProgressBorder = (progress: number) => {
+    // 4 sides: Top, Right, Bottom, Left
+    const strokeWidth = 3;
+    const color = "#007AFF";
+
+    // Percentages for each side
+    const p = Math.max(0, Math.min(100, progress));
+
+    const topP = Math.min(25, p) / 25;
+    const rightP = Math.min(25, Math.max(0, p - 25)) / 25;
+    const bottomP = Math.min(25, Math.max(0, p - 50)) / 25;
+    const leftP = Math.min(25, Math.max(0, p - 75)) / 25;
+
+    return (
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {/* Top Border - grows left to right */}
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            height: strokeWidth,
+            width: `${topP * 100}%`,
+            backgroundColor: color,
+            zIndex: 10,
+          }}
+        />
+
+        {/* Right Border - grows top to bottom */}
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: strokeWidth,
+            height: `${rightP * 100}%`,
+            backgroundColor: color,
+            zIndex: 10,
+          }}
+        />
+
+        {/* Bottom Border - grows right to left */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+            height: strokeWidth,
+            width: `${bottomP * 100}%`,
+            backgroundColor: color,
+            zIndex: 10,
+          }}
+        />
+
+        {/* Left Border - grows bottom to top */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            width: strokeWidth,
+            height: `${leftP * 100}%`,
+            backgroundColor: color,
+            zIndex: 10,
+          }}
+        />
+      </View>
+    );
+  };
+
   const renderCalendarDays = () => {
     const daysInMonth = getDaysInMonth(currentDate);
     const firstDay = getFirstDayOfMonth(currentDate);
@@ -157,7 +234,28 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
 
     // Add cells for each day of the month
     for (let day = 1; day <= daysInMonth; day++) {
-      const completion = getCompletionForDate(day);
+      let completion = getCompletionForDate(day);
+
+      // Check if this is today and we are uploading
+      const isToday =
+        day === new Date().getDate() &&
+        currentDate.getMonth() === new Date().getMonth() &&
+        currentDate.getFullYear() === new Date().getFullYear();
+
+      const showUploading = isToday && isUploading && uploadingImages;
+
+      // If uploading, we construct a temporary completion object to render the optimistic image
+      if (showUploading && uploadingImages) {
+        completion = {
+          id: "temp-uploading",
+          habit_id: habitId,
+          user_id: "current-user", // Placeholder
+          image_url: uploadingImages.backUri,
+          front_image_url: uploadingImages.frontUri,
+          completed_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+      }
 
       days.push(
         <View
@@ -167,28 +265,31 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
           {completion && completion.image_url ? (
             <TouchableOpacity
               style={styles.dayWithImage}
-              onPress={() => onCompletionPress?.(completion)}
+              onPress={() => onCompletionPress?.(completion!)}
               activeOpacity={0.8}
             >
               {completion.front_image_url ? (
                 // Dual camera layout
                 <View style={styles.dualImageContainer}>
-                  <Image
+                  <CachedImage
                     source={{ uri: completion.image_url }}
                     style={styles.dayImageBack}
                   />
-                  <Image
+                  <CachedImage
                     source={{ uri: completion.front_image_url }}
                     style={styles.dayImageFront}
                   />
                 </View>
               ) : (
                 // Single camera layout
-                <Image
+                <CachedImage
                   source={{ uri: completion.image_url }}
                   style={styles.dayImage}
                 />
               )}
+              {/* Overlay Progress Border if uploading and this is the uploading cell */}
+              {showUploading && renderProgressBorder(uploadProgress)}
+
               <Text style={styles.dayNumber}>{day}</Text>
             </TouchableOpacity>
           ) : (

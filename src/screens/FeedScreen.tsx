@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Modal,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -17,37 +18,43 @@ import { supabase } from "../services/supabase";
 import { FeedItem, RootStackParamList } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { useCollapsibleHeader } from "../hooks/useCollapsibleHeader";
+import { CachedImage } from "../components/CachedImage";
 
 type FeedScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const HEADER_HEIGHT = 120;
+const PAGE_SIZE = 10;
 
 const FeedScreen: React.FC = () => {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
   const { user } = useAuth();
   const navigation = useNavigation<FeedScreenNavigationProp>();
   const { scrollY, translateY, handleScroll } =
     useCollapsibleHeader(HEADER_HEIGHT);
 
-  // useEffect(() => {
-  //   if (user) {
-  //     fetchFeed();
-  //   }
-  // }, [user]);
-
+  // Initial load
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (user) {
-        fetchFeed();
+        // Only refresh if the list is empty or we explicitly want to (e.g. user revisited tab)
+        // For now, let's just refresh to keep it simple, but we can optimize later
+        fetchFeed(0, true);
       }
     }, [user])
   );
 
-  const fetchFeed = async () => {
+  const fetchFeed = async (pageNumber: number, shouldRefresh = false) => {
     try {
       if (!user) return;
+
+      if (pageNumber === 0) {
+        setHasMore(true);
+      }
 
       const { data, error } = await supabase
         .from("habit_completions")
@@ -55,14 +62,14 @@ const FeedScreen: React.FC = () => {
           `
           *,
           habits!inner(id, title, color, is_public),
-          users!inner(id, username)
+          users!inner(id, username, avatar_url)
         `
         )
         .not("image_url", "is", null)
         .neq("user_id", user.id)
         .eq("habits.is_public", true)
         .order("completed_at", { ascending: false })
-        .limit(50);
+        .range(pageNumber * PAGE_SIZE, (pageNumber + 1) * PAGE_SIZE - 1);
 
       if (error) throw error;
 
@@ -71,6 +78,7 @@ const FeedScreen: React.FC = () => {
         user: {
           id: completion.users.id,
           username: completion.users.username,
+          avatar_url: completion.users.avatar_url,
         },
         habit: {
           id: completion.habits.id,
@@ -81,18 +89,33 @@ const FeedScreen: React.FC = () => {
         created_at: completion.completed_at,
       }));
 
-      setFeedItems(formattedFeed);
+      if (shouldRefresh || pageNumber === 0) {
+        setFeedItems(formattedFeed);
+      } else {
+        setFeedItems((prev) => [...prev, ...formattedFeed]);
+      }
+
+      setHasMore(formattedFeed.length === PAGE_SIZE);
+      setPage(pageNumber);
     } catch (error) {
       console.error("Error fetching feed:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchFeed();
+    fetchFeed(0, true);
+  };
+
+  const loadMore = () => {
+    if (!loadingMore && hasMore && !loading) {
+      setLoadingMore(true);
+      fetchFeed(page + 1);
+    }
   };
 
   const handleUserPress = (userId: string) => {
@@ -108,11 +131,21 @@ const FeedScreen: React.FC = () => {
           activeOpacity={0.7}
         >
           <TouchableOpacity
-            style={styles.avatar}
+            style={[
+              styles.avatar,
+              item.user.avatar_url ? { backgroundColor: "transparent" } : {},
+            ]}
             onPress={() => handleUserPress(item.user.id)}
             activeOpacity={0.7}
           >
-            <Ionicons name="person" size={20} color="#666" />
+            {item.user.avatar_url ? (
+              <Image
+                source={{ uri: item.user.avatar_url }}
+                style={{ width: 40, height: 40, borderRadius: 20 }}
+              />
+            ) : (
+              <Ionicons name="person" size={20} color="#666" />
+            )}
           </TouchableOpacity>
           <View>
             <Text style={styles.username}>{item.user.username}</Text>
@@ -142,18 +175,18 @@ const FeedScreen: React.FC = () => {
           {item.completion.front_image_url ? (
             // Dual camera layout - overlaid like calendar thumbnail
             <View style={styles.dualImageContainer}>
-              <Image
+              <CachedImage
                 source={{ uri: item.completion.image_url }}
                 style={styles.feedImage}
               />
-              <Image
+              <CachedImage
                 source={{ uri: item.completion.front_image_url }}
                 style={styles.frontImageOverlay}
               />
             </View>
           ) : (
             // Single camera layout
-            <Image
+            <CachedImage
               source={{ uri: item.completion.image_url }}
               style={styles.feedImage}
             />
@@ -236,6 +269,15 @@ const FeedScreen: React.FC = () => {
           }
           onScroll={handleScroll}
           scrollEventThrottle={16}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ padding: 20 }}>
+                <ActivityIndicator size="small" color="#666" />
+              </View>
+            ) : null
+          }
         />
       )}
     </View>
@@ -335,13 +377,13 @@ const styles = StyleSheet.create({
   },
   frontImageOverlay: {
     position: "absolute",
-    top: 12,
-    right: 12,
-    width: 80,
-    aspectRatio: 4 / 5,
+    top: 16,
+    right: 16,
+    width: 120,
+    height: 150,
     resizeMode: "cover",
-    borderRadius: 8,
-    borderWidth: 2,
+    borderRadius: 12,
+    borderWidth: 3,
     borderColor: "#fff",
   },
   dualIndicator: {

@@ -16,8 +16,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useAuth } from "../contexts/AuthContext";
+import { useHabits } from "../contexts/HabitContext";
 import { supabase } from "../services/supabase";
 import { RootStackParamList } from "../types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type CreateHabitScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -58,6 +60,7 @@ const CreateHabitScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { user } = useAuth();
+  const { addHabit } = useHabits();
   const navigation = useNavigation<CreateHabitScreenNavigationProp>();
 
   const handleCreateHabit = async () => {
@@ -74,7 +77,7 @@ const CreateHabitScreen: React.FC = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from("habits").insert({
+      const newHabit = {
         user_id: user.id,
         title: title.trim(),
         description: description.trim() || null,
@@ -88,13 +91,21 @@ const CreateHabitScreen: React.FC = () => {
                 .padStart(2, "0")}`
             : null,
         duration: duration.trim() ? parseInt(duration.trim()) : null,
-      });
+      };
+
+      const { data, error } = await supabase
+        .from("habits")
+        .insert(newHabit)
+        .select()
+        .single();
 
       if (error) throw error;
 
-      Alert.alert("Success", "Habit created successfully!", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      // Update local state immediately via context
+      addHabit(data);
+
+      // Navigate back immediately for "instant" feel
+      navigation.goBack();
     } catch (error) {
       console.error("Error creating habit:", error);
       Alert.alert("Error", "Failed to create habit. Please try again.");
@@ -327,7 +338,7 @@ const CreateHabitScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#fff",
   },
   keyboardView: {
     flex: 1,

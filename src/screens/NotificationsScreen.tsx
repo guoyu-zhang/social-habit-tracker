@@ -74,7 +74,7 @@ const NotificationsScreen: React.FC = () => {
         const senderIds = friendRequests.map((req) => req.sender_id);
         const { data: senders } = await supabase
           .from("users")
-          .select("id, username, avatar_url")
+          .select("id, username")
           .in("id", senderIds);
 
         friendRequestsWithSenders = friendRequests.map((request) => ({
@@ -376,7 +376,7 @@ const NotificationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#fff",
   },
   header: {
     flexDirection: "row",

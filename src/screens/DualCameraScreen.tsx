@@ -6,17 +6,12 @@ import {
   StyleSheet,
   Alert,
   Image,
-  ActivityIndicator,
-  SafeAreaView,
-  ScrollView,
 } from "react-native";
-import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system/legacy";
-import * as ImageManipulator from "expo-image-manipulator";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { supabase } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { useUpload } from "../contexts/UploadContext";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 
 interface DualCameraScreenProps {
   route: {
@@ -30,17 +25,17 @@ interface DualCameraScreenProps {
 export default function DualCameraScreen({ route }: DualCameraScreenProps) {
   const { habitId, selectedDate } = route.params;
   const { user } = useAuth();
+  const { startUpload } = useUpload();
   const navigation = useNavigation();
 
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
-  const [captureStep, setCaptureStep] = useState<
-    "back" | "front" | "preview" | "uploading" | "complete"
-  >("back");
+  const [captureStep, setCaptureStep] = useState<"back" | "front" | "preview">(
+    "back"
+  );
   const [backImage, setBackImage] = useState<string | null>(null);
   const [frontImage, setFrontImage] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const [habitDetails, setHabitDetails] = useState<{
     title: string;
@@ -69,58 +64,6 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
     }
   };
 
-  const base64ToUint8Array = (base64: string): Uint8Array => {
-    const binaryString = globalThis.atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-  };
-
-  const uploadImage = async (
-    imageUri: string,
-    fileName: string
-  ): Promise<string | null> => {
-    try {
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        imageUri,
-        [{ resize: { width: 1280 } }],
-        {
-          compress: 0.6,
-          format: ImageManipulator.SaveFormat.JPEG,
-        }
-      );
-
-      const base64 = await FileSystem.readAsStringAsync(manipulatedImage.uri, {
-        encoding: "base64",
-      });
-
-      const uint8Array = base64ToUint8Array(base64);
-
-      const { data, error } = await supabase.storage
-        .from("habit-images")
-        .upload(fileName, uint8Array, {
-          contentType: "image/jpeg",
-          upsert: false,
-        });
-
-      if (error) {
-        console.error("Upload error:", error);
-        return null;
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("habit-images").getPublicUrl(data.path);
-
-      return publicUrl;
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      return null;
-    }
-  };
-
   const handleCapture = async () => {
     if (!cameraRef.current || isCapturing) return;
 
@@ -128,7 +71,7 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
       setIsCapturing(true);
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
-        base64: false, // We read file later in uploadImage
+        base64: false,
         skipProcessing: false,
       });
 
@@ -153,67 +96,19 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
   };
 
   const handlePost = async () => {
-    if (!backImage || !frontImage) return;
-    setCaptureStep("uploading");
-    await processAndUpload(backImage, frontImage);
+    if (!backImage || !frontImage || !user) return;
+
+    // Start background upload
+    startUpload(habitId, backImage, frontImage, user.id, selectedDate);
+
+    // Navigate back immediately
+    navigation.goBack();
   };
 
   const handleRetake = () => {
     setBackImage(null);
     setFrontImage(null);
     setCaptureStep("back");
-  };
-
-  const processAndUpload = async (backUri: string, frontUri: string) => {
-    if (!user) return;
-
-    try {
-      const timestamp = Date.now();
-      const backFileName = `${user.id}/${habitId}/back_${timestamp}.jpg`;
-      const frontFileName = `${user.id}/${habitId}/front_${timestamp}.jpg`;
-
-      setUploadProgress(25);
-      const backUrl = await uploadImage(backUri, backFileName);
-
-      setUploadProgress(50);
-      const frontUrl = await uploadImage(frontUri, frontFileName);
-
-      setUploadProgress(75);
-
-      if (backUrl && frontUrl) {
-        const completionDate = selectedDate
-          ? new Date(selectedDate)
-          : new Date();
-        const { error } = await supabase.from("habit_completions").insert({
-          user_id: user.id,
-          habit_id: habitId,
-          image_url: backUrl,
-          front_image_url: frontUrl,
-          completed_at: completionDate.toISOString(),
-        });
-
-        setUploadProgress(100);
-
-        if (error) {
-          console.error("Error saving completion:", error);
-          Alert.alert("Error", "Failed to save completion");
-        } else {
-          setCaptureStep("complete");
-          setTimeout(() => {
-            navigation.goBack();
-          }, 1500);
-        }
-      } else {
-        Alert.alert("Error", "Failed to upload images");
-      }
-    } catch (error) {
-      console.error("Error in dual capture:", error);
-      Alert.alert("Error", "Failed to complete dual capture");
-    } finally {
-      if (captureStep !== "complete") {
-        setIsCapturing(false);
-      }
-    }
   };
 
   if (!permission) {
@@ -280,18 +175,6 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
         </View>
       )}
 
-      {/* Status / Uploading View */}
-      {(captureStep === "uploading" || captureStep === "complete") && (
-        <View style={styles.uploadContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.statusText}>
-            {captureStep === "uploading"
-              ? `Uploading... ${uploadProgress}%`
-              : "Dual capture complete!"}
-          </Text>
-        </View>
-      )}
-
       {/* Close/Back Button */}
       <TouchableOpacity
         style={styles.backButton}
@@ -302,7 +185,6 @@ export default function DualCameraScreen({ route }: DualCameraScreenProps) {
             navigation.goBack();
           }
         }}
-        disabled={captureStep === "uploading"}
       >
         <Text style={styles.backButtonText}>✕</Text>
       </TouchableOpacity>
@@ -378,13 +260,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
-  overlayContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "flex-start",
-    alignItems: "center",
-    zIndex: 5,
-    paddingTop: 0,
-  },
   cameraLabel: {
     color: "#fff",
     fontSize: 24,
@@ -422,16 +297,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#000",
   },
-  uploadContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statusText: {
-    color: "#fff",
-    fontSize: 18,
-    marginTop: 20,
-  },
   previewScreen: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
@@ -445,13 +310,13 @@ const styles = StyleSheet.create({
   },
   frontImageOverlay: {
     position: "absolute",
-    top: 12,
-    right: 12,
-    width: 80,
-    aspectRatio: 2 / 3,
+    top: 16,
+    right: 16,
+    width: 120,
+    height: 150,
     resizeMode: "cover",
-    borderRadius: 8,
-    borderWidth: 2,
+    borderRadius: 12,
+    borderWidth: 3,
     borderColor: "#fff",
   },
   postButton: {

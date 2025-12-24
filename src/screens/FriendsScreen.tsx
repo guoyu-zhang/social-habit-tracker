@@ -11,6 +11,7 @@ import {
   Alert,
   Animated,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,6 +29,11 @@ const HEADER_HEIGHT = 196;
 
 interface FriendWithUser extends Friendship {
   friend: Pick<User, "id" | "username" | "avatar_url">;
+  lastMessage?: {
+    content: string;
+    created_at: string;
+    sender_id: string;
+  };
 }
 
 const FriendsScreen: React.FC = () => {
@@ -41,52 +47,89 @@ const FriendsScreen: React.FC = () => {
   const { scrollY, translateY, handleScroll } =
     useCollapsibleHeader(HEADER_HEIGHT);
 
-  const fetchFriends = useCallback(async () => {
-    if (!user) return;
+  const fetchFriends = useCallback(
+    async (useCache = false) => {
+      if (!user) return;
 
-    try {
-      const { data, error } = await supabase
-        .from("friendships")
-        .select("*")
-        .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);
-
-      if (error) throw error;
-
-      // Fetch user details separately
-      let friendsWithUser = [];
-      if (data && data.length > 0) {
-        const userIds = [
-          ...new Set(data.flatMap((f) => [f.user1_id, f.user2_id])),
-        ];
-        const { data: users } = await supabase
-          .from("users")
-          .select("id, username, avatar_url")
-          .in("id", userIds);
-
-        friendsWithUser = data.map((friendship: any) => {
-          const friendId =
-            friendship.user1_id === user.id
-              ? friendship.user2_id
-              : friendship.user1_id;
-          const friend = users?.find((u) => u.id === friendId) || {
-            id: friendId,
-            username: "Unknown User",
-          };
-          return {
-            ...friendship,
-            friend,
-          };
-        });
+      if (useCache) {
+        try {
+          const cached = await AsyncStorage.getItem(`friends_${user.id}`);
+          if (cached) {
+            setFriends(JSON.parse(cached));
+          }
+        } catch (e) {
+          console.error("Error loading cached friends:", e);
+        }
       }
 
-      setFriends(friendsWithUser);
-    } catch (error) {
-      console.error("Error fetching friends:", error);
-      Alert.alert("Error", "Failed to load friends");
-    } finally {
-      setRefreshing(false);
-    }
-  }, [user]);
+      try {
+        const { data, error } = await supabase
+          .from("friendships")
+          .select("*")
+          .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);
+
+        if (error) throw error;
+
+        // Fetch user details separately
+        let friendsWithUser: FriendWithUser[] = [];
+        if (data && data.length > 0) {
+          friendsWithUser = await Promise.all(
+            data.map(async (friendship) => {
+              const friendId =
+                friendship.user1_id === user.id
+                  ? friendship.user2_id
+                  : friendship.user1_id;
+
+              const { data: friendData, error } = await supabase
+                .from("users")
+                .select("id, username, avatar_url")
+                .eq("id", friendId)
+                .single();
+
+              if (error) {
+                console.error(
+                  `Error fetching friend profile for ${friendId}:`,
+                  error
+                );
+              }
+
+              // Fetch last message
+              const { data: lastMessageData } = await supabase
+                .from("messages")
+                .select("content, created_at, sender_id")
+                .or(
+                  `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
+                )
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .single();
+
+              return {
+                ...friendship,
+                friend: friendData || {
+                  id: friendId,
+                  username: `Unknown User (${friendId.slice(0, 8)}...)`,
+                },
+                lastMessage: lastMessageData || undefined,
+              };
+            })
+          );
+        }
+
+        setFriends(friendsWithUser);
+        await AsyncStorage.setItem(
+          `friends_${user.id}`,
+          JSON.stringify(friendsWithUser)
+        );
+      } catch (error) {
+        console.error("Error fetching friends:", error);
+        Alert.alert("Error", "Failed to load friends");
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [user]
+  );
 
   const searchUsers = useCallback(
     async (query: string) => {
@@ -150,51 +193,12 @@ const FriendsScreen: React.FC = () => {
     }
   };
 
-  const removeFriend = async (friendshipId: string) => {
-    if (!user) return;
-
-    try {
-      // First get the friendship details to know the user IDs
-      const { data: friendship, error: fetchError } = await supabase
-        .from("friendships")
-        .select("user1_id, user2_id")
-        .eq("id", friendshipId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Delete the friendship
-      const { error: friendshipError } = await supabase
-        .from("friendships")
-        .delete()
-        .eq("id", friendshipId);
-
-      if (friendshipError) throw friendshipError;
-
-      // Delete any existing friend requests between these users
-      const { error: requestError } = await supabase
-        .from("friend_requests")
-        .delete()
-        .or(
-          `and(sender_id.eq.${friendship.user1_id},receiver_id.eq.${friendship.user2_id}),and(sender_id.eq.${friendship.user2_id},receiver_id.eq.${friendship.user1_id})`
-        );
-
-      if (requestError) throw requestError;
-
-      Alert.alert("Success", "Friend removed");
-      fetchFriends();
-    } catch (error) {
-      console.error("Error removing friend:", error);
-      Alert.alert("Error", "Failed to remove friend");
-    }
-  };
-
   const openChat = (friendId: string, friendName: string) => {
     navigation.navigate("Messaging", { friendId, friendName });
   };
 
   useEffect(() => {
-    fetchFriends();
+    fetchFriends(true);
   }, [fetchFriends]);
 
   useEffect(() => {
@@ -211,7 +215,10 @@ const FriendsScreen: React.FC = () => {
   }, [fetchFriends]);
 
   const renderFriend = ({ item }: { item: FriendWithUser }) => (
-    <View style={styles.friendItem}>
+    <TouchableOpacity
+      style={styles.friendItem}
+      onPress={() => openChat(item.friend.id, item.friend.username)}
+    >
       <View style={styles.friendInfo}>
         <Image
           source={{
@@ -219,23 +226,17 @@ const FriendsScreen: React.FC = () => {
           }}
           style={styles.avatar}
         />
-        <Text style={styles.friendName}>{item.friend.username}</Text>
+        <View style={styles.friendTextContainer}>
+          <Text style={styles.friendName}>{item.friend.username}</Text>
+          {item.lastMessage && (
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {item.lastMessage.sender_id === user?.id ? "You: " : ""}
+              {item.lastMessage.content}
+            </Text>
+          )}
+        </View>
       </View>
-      <View style={styles.friendActions}>
-        <TouchableOpacity
-          style={styles.messageButton}
-          onPress={() => openChat(item.friend.id, item.friend.username)}
-        >
-          <Ionicons name="chatbubble-outline" size={24} color="#007AFF" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.removeButton}
-          onPress={() => removeFriend(item.id)}
-        >
-          <Ionicons name="person-remove-outline" size={24} color="#FF3B30" />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderSearchResult = ({ item }: { item: UserSearchResult }) => (
@@ -429,6 +430,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
+  friendTextContainer: {
+    flex: 1,
+    justifyContent: "center",
+  },
   avatar: {
     width: 50,
     height: 50,
@@ -439,6 +444,11 @@ const styles = StyleSheet.create({
     color: "#333",
     fontSize: 16,
     fontWeight: "500",
+    marginBottom: 2,
+  },
+  lastMessage: {
+    color: "#8E8E93",
+    fontSize: 14,
   },
   friendActions: {
     flexDirection: "row",

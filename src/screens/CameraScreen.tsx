@@ -137,6 +137,23 @@ const CameraScreen: React.FC = () => {
         .from(BUCKETS.HABIT_IMAGES)
         .getPublicUrl(fileName);
 
+      // Cache the image immediately so it doesn't need to be re-downloaded
+      try {
+        const publicUrl = urlData.publicUrl;
+        const cacheFilename =
+          publicUrl.split("/").pop()?.split("?")[0] || "temp_img";
+        const sanitizedFilename = cacheFilename.replace(/[^a-zA-Z0-9.]/g, "_");
+        const cachePath = `${FileSystem.cacheDirectory}${sanitizedFilename}`;
+
+        // Copy the manipulated (resized/compressed) image to the cache directory
+        await FileSystem.copyAsync({
+          from: manipulated.uri,
+          to: cachePath,
+        });
+      } catch (cacheError) {
+        console.error("Error caching uploaded image:", cacheError);
+      }
+
       return urlData.publicUrl;
     } catch (error) {
       console.error("Error uploading image:", error);
