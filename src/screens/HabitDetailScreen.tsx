@@ -8,6 +8,7 @@ import {
   Alert,
   TextInput,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
@@ -35,10 +36,11 @@ const HabitDetailScreen: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCompletion, setSelectedCompletion] =
     useState<HabitCompletion | null>(null);
-  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
+  const [editedIsPublic, setEditedIsPublic] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const { deleteHabit: deleteHabitFromContext } = useHabits();
+  const { deleteHabit: deleteHabitFromContext, updateHabit } = useHabits();
 
   const route = useRoute<HabitDetailScreenRouteProp>();
   const navigation = useNavigation<HabitDetailScreenNavigationProp>();
@@ -50,6 +52,7 @@ const HabitDetailScreen: React.FC = () => {
       setStats(initialData.stats);
       setCompletions(initialData.completions);
       setLoading(false);
+      setEditedTitle(initialData.title);
     }
   }, [initialData]);
 
@@ -76,6 +79,9 @@ const HabitDetailScreen: React.FC = () => {
 
       if (habitError) throw habitError;
       setHabit(habitData);
+      if (!isEditingName) {
+        setEditedTitle(habitData.title);
+      }
 
       // Fetch habit stats
       const { data: completionsData, error: completionsError } = await supabase
@@ -172,8 +178,23 @@ const HabitDetailScreen: React.FC = () => {
   };
 
   const handleCompletionPress = (completion: HabitCompletion) => {
-    setSelectedCompletion(completion);
-    setModalVisible(true);
+    if (isEditingName) {
+      Alert.alert(
+        "Delete Entry",
+        "Are you sure you want to delete this entry?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => handleDeleteCompletion(completion.id),
+          },
+        ]
+      );
+    } else {
+      setSelectedCompletion(completion);
+      setModalVisible(true);
+    }
   };
 
   const handleDayPress = (date: Date, habitId: string) => {
@@ -188,17 +209,35 @@ const HabitDetailScreen: React.FC = () => {
   };
 
   const handleDeleteCompletion = async (completionId: string) => {
-    // Remove the completion from local state
-    setCompletions((prev) => prev.filter((c) => c.id !== completionId));
+    try {
+      // 1. Delete from database first
+      const { error } = await supabase
+        .from("habit_completions")
+        .delete()
+        .eq("id", completionId);
 
-    // Refresh habit details to update stats
-    await fetchHabitDetails();
+      if (error) throw error;
+
+      // 2. Remove from local state
+      setCompletions((prev) => prev.filter((c) => c.id !== completionId));
+
+      // 3. Refresh habit details to update stats
+      await fetchHabitDetails();
+    } catch (error) {
+      console.error("Error deleting completion:", error);
+      Alert.alert("Error", "Failed to delete entry. Please try again.");
+    }
   };
 
-  const handleEditHabitName = () => {
-    if (!habit) return;
-    setEditedTitle(habit.title);
-    setEditModalVisible(true);
+  const handleEditPress = () => {
+    if (isEditingName) {
+      handleSaveHabitName();
+    } else {
+      if (habit) {
+        setEditedTitle(habit.title);
+        setIsEditingName(true);
+      }
+    }
   };
 
   const handleSaveHabitName = async () => {
@@ -220,8 +259,11 @@ const HabitDetailScreen: React.FC = () => {
       setHabit((prev) =>
         prev ? { ...prev, title: editedTitle.trim() } : null
       );
-      setEditModalVisible(false);
-      Alert.alert("Success", "Habit name updated successfully!");
+
+      // Update global context state
+      updateHabit(habit.id, { title: editedTitle.trim() });
+
+      setIsEditingName(false);
     } catch (error) {
       Alert.alert("Error", "Failed to update habit name. Please try again.");
     } finally {
@@ -230,8 +272,10 @@ const HabitDetailScreen: React.FC = () => {
   };
 
   const handleCancelEdit = () => {
-    setEditModalVisible(false);
-    setEditedTitle("");
+    setIsEditingName(false);
+    if (habit) {
+      setEditedTitle(habit.title);
+    }
   };
 
   const handleDeleteHabit = () => {
@@ -253,39 +297,6 @@ const HabitDetailScreen: React.FC = () => {
     deleteHabitFromContext(habitId);
   };
 
-  const handleTogglePrivacy = async () => {
-    if (!habit) return;
-
-    try {
-      const newIsPublic = !habit.is_public;
-
-      const { error } = await supabase
-        .from("habits")
-        .update({ is_public: newIsPublic })
-        .eq("id", habit.id);
-
-      if (error) throw error;
-
-      // Update local state
-      setHabit({ ...habit, is_public: newIsPublic });
-
-      Alert.alert(
-        "Privacy Updated",
-        `Your habit is now ${newIsPublic ? "public" : "private"}. ${
-          newIsPublic
-            ? "Others can see your progress in the feed."
-            : "Your progress is now private."
-        }`
-      );
-    } catch (error) {
-      console.error("Error updating privacy:", error);
-      Alert.alert(
-        "Error",
-        "Failed to update privacy setting. Please try again."
-      );
-    }
-  };
-
   if (loading || !habit || !stats) {
     return (
       <View style={styles.centerContainer}>
@@ -299,29 +310,61 @@ const HabitDetailScreen: React.FC = () => {
       <View style={styles.navHeader}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (isEditingName) {
+              handleCancelEdit();
+            } else {
+              navigation.goBack();
+            }
+          }}
         >
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons
+            name={isEditingName ? "close" : "arrow-back"}
+            size={24}
+            color="#333"
+          />
         </TouchableOpacity>
-        <Text style={styles.navHeaderTitle}>Habit Details</Text>
-        <View style={styles.placeholder} />
+
+        {isEditingName ? (
+          <TextInput
+            style={[styles.navHeaderTitle, styles.headerInput]}
+            value={editedTitle}
+            onChangeText={setEditedTitle}
+            autoFocus={false}
+            placeholder="Habit Name"
+            maxLength={50}
+            onSubmitEditing={handleSaveHabitName}
+            returnKeyType="done"
+          />
+        ) : (
+          <Text style={styles.navHeaderTitle} numberOfLines={1}>
+            {habit.title}
+          </Text>
+        )}
+
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleEditPress}
+          disabled={isUpdating}
+        >
+          {isUpdating ? (
+            <ActivityIndicator size="small" color="#333" />
+          ) : (
+            <Ionicons
+              name={isEditingName ? "checkmark" : "pencil"}
+              size={24}
+              color="#333"
+            />
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView>
-        <View style={[styles.header, { backgroundColor: "#fff" }]}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.habitTitle}>{habit.title}</Text>
-            <TouchableOpacity
-              onPress={handleEditHabitName}
-              style={styles.editButton}
-            >
-              <Ionicons name="pencil" size={20} color="#333" />
-            </TouchableOpacity>
-          </View>
-          {habit.description && (
+        {habit.description ? (
+          <View style={[styles.header, { backgroundColor: "#fff" }]}>
             <Text style={styles.habitDescription}>{habit.description}</Text>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         <View style={styles.statsContainer}>
           <Text style={styles.sectionTitle}>Statistics</Text>
@@ -356,6 +399,8 @@ const HabitDetailScreen: React.FC = () => {
             hideHeader={true}
             showMonthNavigation={true}
             compact={true}
+            isEditing={isEditingName}
+            createdAt={habit.created_at}
           />
         </View>
 
@@ -376,35 +421,51 @@ const HabitDetailScreen: React.FC = () => {
             <Text style={styles.infoValue}>{habit.frequency}</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.infoRow}
-            onPress={handleTogglePrivacy}
-          >
+          <View style={styles.infoRow}>
             <Ionicons
-              name={habit.is_public ? "globe-outline" : "lock-closed-outline"}
+              name={
+                (isEditingName ? editedIsPublic : habit.is_public)
+                  ? "globe-outline"
+                  : "lock-closed-outline"
+              }
               size={20}
               color="#666"
             />
             <Text style={styles.infoLabel}>Visibility</Text>
-            <Text style={styles.infoValue}>
-              {habit.is_public ? "Public" : "Private"}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color="#ccc" />
-          </TouchableOpacity>
-
-          {stats.last_completed && (
-            <View style={styles.infoRow}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#666"
-              />
-              <Text style={styles.infoLabel}>Last Completed</Text>
+            {isEditingName ? (
+              <View style={styles.privacyToggleContainer}>
+                <TouchableOpacity onPress={() => setEditedIsPublic(true)}>
+                  <Text
+                    style={[
+                      styles.privacyOption,
+                      editedIsPublic
+                        ? styles.privacyOptionActive
+                        : styles.privacyOptionInactive,
+                    ]}
+                  >
+                    Public
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.privacySeparator}> / </Text>
+                <TouchableOpacity onPress={() => setEditedIsPublic(false)}>
+                  <Text
+                    style={[
+                      styles.privacyOption,
+                      !editedIsPublic
+                        ? styles.privacyOptionActive
+                        : styles.privacyOptionInactive,
+                    ]}
+                  >
+                    Private
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
               <Text style={styles.infoValue}>
-                {new Date(stats.last_completed).toLocaleDateString()}
+                {habit.is_public ? "Public" : "Private"}
               </Text>
-            </View>
-          )}
+            )}
+          </View>
         </View>
 
         <View style={styles.actionsContainer}>
@@ -424,46 +485,6 @@ const HabitDetailScreen: React.FC = () => {
         onClose={handleCloseModal}
         onDelete={handleDeleteCompletion}
       />
-
-      {/* Edit Habit Name Modal */}
-      <Modal
-        visible={editModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCancelEdit}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.editModalContainer}>
-            <Text style={styles.editModalTitle}>Edit Habit Name</Text>
-            <TextInput
-              style={styles.editInput}
-              value={editedTitle}
-              onChangeText={setEditedTitle}
-              placeholder="Enter habit name"
-              autoFocus={true}
-              maxLength={50}
-            />
-            <View style={styles.editModalButtons}>
-              <TouchableOpacity
-                style={[styles.editModalButton, styles.cancelButton]}
-                onPress={handleCancelEdit}
-                disabled={isUpdating}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.editModalButton, styles.saveButton]}
-                onPress={handleSaveHabitName}
-                disabled={isUpdating || !editedTitle.trim()}
-              >
-                <Text style={styles.saveButtonText}>
-                  {isUpdating ? "Saving..." : "Save"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -471,7 +492,7 @@ const HabitDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#fff",
   },
   centerContainer: {
     flex: 1,
@@ -493,32 +514,22 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: "#333",
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 10,
+  },
+  headerInput: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#007AFF",
+    paddingVertical: 4,
   },
   backButton: {
     padding: 8,
-  },
-  placeholder: {
-    width: 40,
   },
   header: {
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
-  },
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  habitTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#333",
-    flex: 1,
-  },
-  editButton: {
-    padding: 8,
   },
   habitDescription: {
     fontSize: 16,
@@ -670,6 +681,27 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "white",
     fontWeight: "600",
+  },
+  privacyToggleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  privacyOption: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  privacyOptionActive: {
+    color: "#007AFF",
+    fontWeight: "bold",
+  },
+  privacyOptionInactive: {
+    color: "#ccc",
+    fontWeight: "normal",
+  },
+  privacySeparator: {
+    fontSize: 16,
+    color: "#ccc",
+    marginHorizontal: 4,
   },
 });
 

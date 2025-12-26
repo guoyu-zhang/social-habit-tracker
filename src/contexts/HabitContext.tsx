@@ -25,6 +25,7 @@ interface HabitContextType {
   addHabit: (habit: Habit) => void;
   addHabitCompletion: (habitId: string, completion: HabitCompletion) => void;
   deleteHabit: (habitId: string) => void; // Non-async return for optimistic update
+  updateHabit: (habitId: string, updates: Partial<Habit>) => void;
   updateHabitPrivacy: (habit: HabitWithStats) => Promise<void>;
 }
 
@@ -339,6 +340,12 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const updateHabit = (habitId: string, updates: Partial<Habit>) => {
+    setHabits((prev) =>
+      prev.map((h) => (h.id === habitId ? { ...h, ...updates } : h))
+    );
+  };
+
   const updateHabitPrivacy = async (habit: HabitWithStats) => {
     try {
       const newIsPublic = !habit.is_public;
@@ -380,6 +387,7 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({
         addHabit,
         addHabitCompletion,
         deleteHabit,
+        updateHabit,
         updateHabitPrivacy,
       }}
     >

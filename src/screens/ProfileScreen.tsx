@@ -31,6 +31,7 @@ import {
 import { supabase, BUCKETS } from "../services/supabase";
 import DaySlideshow from "../components/DaySlideshow";
 import DayDetailModal from "../components/DayDetailModal";
+import { CachedImage } from "../components/CachedImage";
 
 type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -390,7 +391,10 @@ const ProfileScreen: React.FC = () => {
         disabled={uploading}
       >
         {user?.avatar_url ? (
-          <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+          <CachedImage
+            source={{ uri: user.avatar_url }}
+            style={styles.avatar}
+          />
         ) : (
           <View style={[styles.avatar, styles.placeholderAvatar]}>
             <Ionicons name="person" size={40} color="#666" />

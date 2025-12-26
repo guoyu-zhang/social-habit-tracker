@@ -24,6 +24,8 @@ interface HabitCalendarProps {
   isUploading?: boolean;
   uploadProgress?: number;
   uploadingImages?: { backUri: string; frontUri: string };
+  isEditing?: boolean;
+  createdAt?: string;
 }
 
 const HabitCalendar: React.FC<HabitCalendarProps> = ({
@@ -39,6 +41,8 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
   isUploading = false,
   uploadProgress = 0,
   uploadingImages,
+  isEditing = false,
+  createdAt,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarGridWidth, setCalendarGridWidth] = useState(0);
@@ -77,6 +81,33 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
     setCurrentDate(newDate);
   };
 
+  const canGoBack = () => {
+    if (!createdAt) return true;
+    const created = new Date(createdAt);
+    const currentMonthStart = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      1
+    );
+    const createdMonthStart = new Date(
+      created.getFullYear(),
+      created.getMonth(),
+      1
+    );
+    return currentMonthStart > createdMonthStart;
+  };
+
+  const canGoForward = () => {
+    const today = new Date();
+    const currentMonthStart = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      1
+    );
+    const todayMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    return currentMonthStart < todayMonthStart;
+  };
+
   const handleDayPress = (day: number) => {
     if (onDayPress) {
       const selectedDate = new Date(
@@ -111,10 +142,15 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
     return (
       <View style={styles.calendarHeader}>
         <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigateMonth("prev")}
+          style={[styles.navButton, !canGoBack() && styles.disabledNavButton]}
+          onPress={() => canGoBack() && navigateMonth("prev")}
+          disabled={!canGoBack()}
         >
-          <Ionicons name="chevron-back" size={20} color="#666" />
+          <Ionicons
+            name="chevron-back"
+            size={20}
+            color={canGoBack() ? "#666" : "#ccc"}
+          />
         </TouchableOpacity>
 
         <Text style={styles.monthText}>
@@ -122,10 +158,18 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
         </Text>
 
         <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigateMonth("next")}
+          style={[
+            styles.navButton,
+            !canGoForward() && styles.disabledNavButton,
+          ]}
+          onPress={() => canGoForward() && navigateMonth("next")}
+          disabled={!canGoForward()}
         >
-          <Ionicons name="chevron-forward" size={20} color="#666" />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={canGoForward() ? "#666" : "#ccc"}
+          />
         </TouchableOpacity>
       </View>
     );
@@ -290,6 +334,13 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
               {/* Overlay Progress Border if uploading and this is the uploading cell */}
               {showUploading && renderProgressBorder(uploadProgress)}
 
+              {/* Edit Mode Overlay */}
+              {isEditing && (
+                <View style={styles.deleteOverlay}>
+                  <Ionicons name="close-circle" size={24} color="#FF3B30" />
+                </View>
+              )}
+
               <Text style={styles.dayNumber}>{day}</Text>
             </TouchableOpacity>
           ) : (
@@ -301,6 +352,22 @@ const HabitCalendar: React.FC<HabitCalendarProps> = ({
               <Text style={styles.dayNumberEmpty}>{day}</Text>
             </TouchableOpacity>
           )}
+        </View>
+      );
+    }
+
+    // Add empty cells for days after the last day of the month to fill the row
+    const totalCells = firstDay + daysInMonth;
+    const remainder = totalCells % 7;
+    const trailingEmptyCells = remainder === 0 ? 0 : 7 - remainder;
+
+    for (let i = 0; i < trailingEmptyCells; i++) {
+      days.push(
+        <View
+          key={`empty-end-${i}`}
+          style={[styles.dayCell, { width: daySize, height: daySize }]}
+        >
+          <View style={styles.emptyDay} />
         </View>
       );
     }
@@ -366,6 +433,9 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 20,
     backgroundColor: "#f0f0f0",
+  },
+  disabledNavButton: {
+    opacity: 0.5,
   },
   monthText: {
     fontSize: 18,
@@ -461,9 +531,17 @@ const styles = StyleSheet.create({
   compactContainer: {
     marginBottom: 0,
     borderRadius: 8,
+    backgroundColor: "transparent",
   },
   compactCalendarContainer: {
     padding: 0,
+  },
+  deleteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 20,
   },
 });
 

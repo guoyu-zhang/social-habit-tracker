@@ -19,6 +19,7 @@ import { RootStackParamList } from "../types";
 import DaySlideshow from "../components/DaySlideshow";
 import DayDetailModal from "../components/DayDetailModal";
 import { useAuth } from "../contexts/AuthContext";
+import { CachedImage } from "../components/CachedImage";
 
 type UserProfileScreenRouteProp = RouteProp<RootStackParamList, "UserProfile">;
 type UserProfileScreenNavigationProp = StackNavigationProp<
@@ -611,7 +612,10 @@ const UserProfileScreen: React.FC = () => {
       <>
         <View style={styles.profileSection}>
           {user.avatar_url ? (
-            <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+            <CachedImage
+              source={{ uri: user.avatar_url }}
+              style={styles.avatar}
+            />
           ) : (
             <View style={styles.avatar}>
               <Ionicons name="person" size={40} color="#666" />

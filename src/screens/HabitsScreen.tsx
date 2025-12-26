@@ -11,6 +11,7 @@ import {
   Animated,
   ActivityIndicator,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -27,6 +28,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 type HabitsScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const HEADER_HEIGHT = 120;
+
+const hexToRgba = (hex: string, opacity: number) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(
+        result[3],
+        16
+      )}, ${opacity})`
+    : `rgba(0, 0, 0, ${opacity})`;
+};
 
 const HabitsScreen: React.FC = () => {
   const { habits, loading, refreshing, fetchHabits, addHabitCompletion } =
@@ -122,37 +133,145 @@ const HabitsScreen: React.FC = () => {
     const isOptimisticallyCompleted =
       item.completedToday || (upload && upload.status !== "error");
 
+    const cardBackgroundColor = hexToRgba(item.color, 0.15); // Increased opacity for richer color
+    const borderColor = hexToRgba(item.color, 0.2);
+    const shadowColor = hexToRgba(item.color, 0.3);
+
     return (
       <View
         style={[
           styles.habitCard,
-          { backgroundColor: "#fff", borderWidth: 1, borderColor: "#f0f0f0" },
+          {
+            backgroundColor: "#fff",
+            borderColor: "rgba(255,255,255,0.6)",
+            borderWidth: 1,
+            shadowColor: shadowColor,
+          },
         ]}
       >
+        {/* Deep Depth Layer - Darker bottom-right corner for volume */}
+        <LinearGradient
+          colors={["#ffffff", "#e8e8e8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+        />
+
+        {/* Strong Color Gradient - Diagonal sweep for dynamic look */}
+        <LinearGradient
+          colors={[
+            hexToRgba(item.color, 0.08), // Lighter top-left
+            hexToRgba(item.color, 0.25), // Stronger bottom-right
+          ]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+        />
+
+        {/* Texture/Noise Simulation (Subtle grain pattern using repeated views) */}
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              opacity: 0.03,
+              backgroundColor: "#000",
+              borderRadius: 24,
+            },
+          ]}
+        />
+
+        {/* Top Highlight - Simulates light source from top-left */}
+        <LinearGradient
+          colors={["rgba(255,255,255,0.95)", "rgba(255,255,255,0.0)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.8, y: 0.6 }}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "60%",
+            borderRadius: 24,
+            opacity: 0.6,
+          }}
+        />
+
+        {/* Bottom-Right Shadow/Rim - Adds 3D pop */}
+        <LinearGradient
+          colors={["transparent", hexToRgba(item.color, 0.2)]}
+          start={{ x: 0.5, y: 0.5 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, { borderRadius: 24, opacity: 0.8 }]}
+        />
+
+        {/* Top Edge Highlight - Sharp polished rim */}
+        {/* <View
+          style={{
+            position: "absolute",
+            top: 1,
+            left: 12,
+            right: 12,
+            height: 1,
+            backgroundColor: "rgba(255,255,255,0.8)",
+            opacity: 0.9,
+          }}
+        /> */}
+
         <TouchableOpacity
-          style={styles.habitHeader}
+          style={[
+            styles.habitHeader,
+            !item.description && { alignItems: "center" },
+          ]}
           onPress={() =>
             navigation.navigate("HabitDetail", {
               habitId: item.id,
               initialData: item,
             })
           }
-          activeOpacity={0.7}
+          activeOpacity={0.9}
         >
-          <View style={styles.habitInfo}>
-            <View style={styles.titleRow}>
-              <Text style={styles.habitTitle}>{item.title}</Text>
-              {item.stats?.current_streak > 0 && (
-                <Text style={styles.streakDisplay}>
-                  {item.stats.current_streak} 🔥
-                </Text>
-              )}
+          <View
+            style={[
+              styles.habitInfo,
+              !item.description && { justifyContent: "center" },
+            ]}
+          >
+            <View
+              style={[
+                styles.titleRow,
+                !item.description && { marginBottom: 0 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.habitTitle,
+                  !item.description && styles.habitTitleLarge,
+                ]}
+              >
+                {item.title}
+              </Text>
             </View>
             {item.description && (
               <Text style={styles.habitDescription}>{item.description}</Text>
             )}
           </View>
           <View style={styles.habitActions}>
+            {item.stats?.current_streak > 0 && (
+              <View
+                style={[
+                  styles.streakBadge,
+                  {
+                    backgroundColor: hexToRgba(item.color, 0.1),
+                    height: 32, // Match checkCircle height
+                    justifyContent: "center",
+                  },
+                ]}
+              >
+                <Text style={[styles.streakDisplay, { color: item.color }]}>
+                  {item.stats.current_streak} 🔥
+                </Text>
+              </View>
+            )}
             <TouchableOpacity
               style={[
                 styles.completeButton,
@@ -162,17 +281,25 @@ const HabitsScreen: React.FC = () => {
               disabled={isOptimisticallyCompleted}
             >
               {isUploading ? (
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color={item.color} />
               ) : (
-                <Ionicons
-                  name={
-                    isOptimisticallyCompleted
-                      ? "checkmark-circle"
-                      : "checkmark-circle-outline"
-                  }
-                  size={32}
-                  color={isOptimisticallyCompleted ? "#4CAF50" : "#007AFF"}
-                />
+                <View
+                  style={[
+                    styles.checkCircle,
+                    {
+                      borderColor: isOptimisticallyCompleted
+                        ? item.color
+                        : "#D1D1D6",
+                      backgroundColor: isOptimisticallyCompleted
+                        ? item.color
+                        : "transparent",
+                    },
+                  ]}
+                >
+                  {isOptimisticallyCompleted && (
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  )}
+                </View>
               )}
             </TouchableOpacity>
           </View>
@@ -331,59 +458,82 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 20,
+    paddingTop: 10,
   },
   habitCard: {
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "rgba(0, 0, 0, 0.1)",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   habitHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+    alignItems: "flex-start",
+    marginBottom: 4,
   },
   habitInfo: {
     flex: 1,
+    marginRight: 12,
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 6,
   },
   streakDisplay: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#333",
+  },
+  streakBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   habitActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
   },
   privacyButton: {
     padding: 8,
   },
   habitTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
+    color: "#1C1C1E", // Soft black
+    letterSpacing: -0.5,
+  },
+  habitTitleLarge: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#1C1C1E",
+    letterSpacing: -0.5,
+    lineHeight: 32,
   },
   habitDescription: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 15,
+    color: "#8E8E93", // Standard iOS subtitle gray
+    lineHeight: 20,
   },
   completeButton: {
-    padding: 8,
+    padding: 4,
   },
   completedButton: {
-    opacity: 0.6,
+    opacity: 1, // Keep full opacity for the filled state
+  },
+  checkCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
   },
   statsRow: {
     flexDirection: "row",
@@ -440,7 +590,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   calendarContainer: {
-    marginTop: 8,
+    marginTop: 0,
   },
 });
 

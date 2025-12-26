@@ -7,11 +7,9 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
-  Modal,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -53,10 +51,6 @@ const CreateHabitScreen: React.FC = () => {
     "daily"
   );
   const [isPublic, setIsPublic] = useState(true);
-  const [startHour, setStartHour] = useState(9);
-  const [startMinute, setStartMinute] = useState(0);
-  const [duration, setDuration] = useState("");
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const { user } = useAuth();
@@ -84,13 +78,8 @@ const CreateHabitScreen: React.FC = () => {
         color: selectedColor,
         frequency: frequency,
         is_public: isPublic,
-        start_time:
-          startHour !== null && startMinute !== null
-            ? `${startHour.toString().padStart(2, "0")}:${startMinute
-                .toString()
-                .padStart(2, "0")}`
-            : null,
-        duration: duration.trim() ? parseInt(duration.trim()) : null,
+        start_time: null,
+        duration: null,
       };
 
       const { data, error } = await supabase
@@ -207,39 +196,6 @@ const CreateHabitScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Scheduling (Optional)</Text>
-              <Text style={styles.schedulingDescription}>
-                Set a specific time and duration for this habit
-              </Text>
-              <View style={styles.schedulingRow}>
-                <View style={styles.timeInputContainer}>
-                  <Text style={styles.timeLabel}>Start Time</Text>
-                  <TouchableOpacity
-                    style={styles.timeInput}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <Text style={styles.timeInputText}>
-                      {`${startHour.toString().padStart(2, "0")}:${startMinute
-                        .toString()
-                        .padStart(2, "0")}`}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.durationInputContainer}>
-                  <Text style={styles.timeLabel}>Duration (min)</Text>
-                  <TextInput
-                    style={styles.timeInput}
-                    placeholder="30"
-                    value={duration}
-                    onChangeText={setDuration}
-                    maxLength={3}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
               <TouchableOpacity
                 style={styles.toggleRow}
                 onPress={() => setIsPublic(!isPublic)}
@@ -271,66 +227,6 @@ const CreateHabitScreen: React.FC = () => {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Time Picker Modal */}
-      <Modal
-        visible={showTimePicker}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowTimePicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                <Text style={styles.modalCancelButton}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Select Time</Text>
-              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                <Text style={styles.modalDoneButton}>Done</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.pickerContainer}>
-              <View style={styles.pickerColumn}>
-                <Text style={styles.pickerLabel}>Hour</Text>
-                <Picker
-                  selectedValue={startHour}
-                  onValueChange={setStartHour}
-                  style={styles.picker}
-                  itemStyle={{ color: "#333", fontSize: 18 }}
-                >
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <Picker.Item
-                      key={i}
-                      label={i.toString().padStart(2, "0")}
-                      value={i}
-                    />
-                  ))}
-                </Picker>
-              </View>
-
-              <View style={styles.pickerColumn}>
-                <Text style={styles.pickerLabel}>Minute</Text>
-                <Picker
-                  selectedValue={startMinute}
-                  onValueChange={setStartMinute}
-                  style={styles.picker}
-                  itemStyle={{ color: "#333", fontSize: 18 }}
-                >
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <Picker.Item
-                      key={i * 5}
-                      label={(i * 5).toString().padStart(2, "0")}
-                      value={i * 5}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -482,95 +378,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  schedulingDescription: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 12,
-  },
-  schedulingRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  timeInputContainer: {
-    flex: 1,
-  },
-  durationInputContainer: {
-    flex: 1,
-  },
-  timeLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333",
-    marginBottom: 6,
-  },
-  timeInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timeInputText: {
-    fontSize: 16,
-    color: "#333",
-    textAlign: "center",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 34,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  modalCancelButton: {
-    fontSize: 16,
-    color: "#007AFF",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  modalDoneButton: {
-    fontSize: 16,
-    color: "#007AFF",
-    fontWeight: "600",
-  },
-  pickerContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-  },
-  pickerColumn: {
-    flex: 1,
-    alignItems: "center",
-  },
-  pickerLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333",
-    marginBottom: 10,
-  },
-  picker: {
-    width: "100%",
-    height: 200,
-    color: "#333",
   },
 });
 

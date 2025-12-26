@@ -6,15 +6,32 @@ interface CachedImageProps extends Omit<ImageProps, "source"> {
   source: { uri: string };
 }
 
+// In-memory cache to store mapping of remote URIs to local file URIs
+// This prevents checking the file system repeatedly for the same image
+const uriCache = new Map<string, string>();
+
 export const CachedImage: React.FC<CachedImageProps> = ({
   source,
   ...props
 }) => {
-  const [cachedUri, setCachedUri] = useState<string | null>(null);
+  // Initialize with value from memory cache if available
+  const [cachedUri, setCachedUri] = useState<string | null>(
+    source?.uri ? uriCache.get(source.uri) || null : null
+  );
 
   useEffect(() => {
     let isMounted = true;
-    setCachedUri(null); // Reset cached URI when source changes
+
+    // If we already have it in memory cache, we're good
+    if (source?.uri && uriCache.has(source.uri)) {
+      const localUri = uriCache.get(source.uri);
+      if (localUri !== cachedUri) {
+        setCachedUri(localUri || null);
+      }
+      return;
+    }
+
+    setCachedUri(null); // Reset cached URI when source changes (if not in memory cache)
 
     const loadCachedImage = async () => {
       try {
@@ -37,14 +54,22 @@ export const CachedImage: React.FC<CachedImageProps> = ({
         const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.]/g, "_");
         const path = `${FileSystem.cacheDirectory}${sanitizedFilename}`;
 
+        // Check memory cache again (in case another component loaded it while we were waiting)
+        if (uriCache.has(source.uri)) {
+          if (isMounted) setCachedUri(uriCache.get(source.uri) || null);
+          return;
+        }
+
         const fileInfo = await FileSystem.getInfoAsync(path);
 
         if (fileInfo.exists) {
+          uriCache.set(source.uri, path);
           if (isMounted) setCachedUri(path);
         } else {
           // Download in background
           const downloadRes = await FileSystem.downloadAsync(source.uri, path);
           if (isMounted && downloadRes && downloadRes.uri) {
+            uriCache.set(source.uri, downloadRes.uri);
             setCachedUri(downloadRes.uri);
           }
         }

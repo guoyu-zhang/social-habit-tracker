@@ -3,14 +3,14 @@ import {
   View,
   Text,
   FlatList,
-  Image,
   StyleSheet,
+  Image,
   RefreshControl,
   TouchableOpacity,
-  Modal,
-  Animated,
   ActivityIndicator,
+  Animated,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -22,8 +22,18 @@ import { CachedImage } from "../components/CachedImage";
 
 type FeedScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
-const HEADER_HEIGHT = 120;
 const PAGE_SIZE = 10;
+const HEADER_HEIGHT = 120;
+
+const hexToRgba = (hex: string, opacity: number) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(
+        result[3],
+        16
+      )}, ${opacity})`
+    : `rgba(0, 0, 0, ${opacity})`;
+};
 
 const FeedScreen: React.FC = () => {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
@@ -158,13 +168,59 @@ const FeedScreen: React.FC = () => {
           style={[
             styles.habitBadge,
             {
-              backgroundColor: "#fff",
               borderWidth: 1,
-              borderColor: item.habit.color,
+              borderColor: "rgba(255,255,255,0.6)",
+              backgroundColor: "#fff",
+              overflow: "hidden",
             },
           ]}
         >
-          <Text style={[styles.habitTitle, { color: item.habit.color }]}>
+          {/* Deep Depth Layer */}
+          <LinearGradient
+            colors={["#ffffff", "#e8e8e8"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+
+          {/* Color Gradient */}
+          <LinearGradient
+            colors={[
+              hexToRgba(item.habit.color, 0.15),
+              hexToRgba(item.habit.color, 0.35),
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+
+          {/* Texture */}
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                opacity: 0.03,
+                backgroundColor: "#000",
+              },
+            ]}
+          />
+
+          {/* Top Highlight */}
+          <LinearGradient
+            colors={["rgba(255,255,255,0.8)", "rgba(255,255,255,0.0)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0.8, y: 0.6 }}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "60%",
+              opacity: 0.6,
+            }}
+          />
+
+          <Text style={[styles.habitTitle, { color: "#000" }]}>
             {item.habit.title}
           </Text>
         </View>
@@ -208,6 +264,27 @@ const FeedScreen: React.FC = () => {
       </View>
     </View>
   );
+
+  const renderFooter = () => {
+    if (loadingMore) {
+      return (
+        <View style={{ padding: 20 }}>
+          <ActivityIndicator size="small" color="#666" />
+        </View>
+      );
+    }
+
+    if (!hasMore && feedItems.length > 0) {
+      return (
+        <View style={styles.footerContainer}>
+          <Ionicons name="checkmark-circle-outline" size={24} color="#ccc" />
+          <Text style={styles.footerText}>You're all caught up</Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
 
   if (loading) {
     return (
@@ -271,13 +348,7 @@ const FeedScreen: React.FC = () => {
           scrollEventThrottle={16}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={{ padding: 20 }}>
-                <ActivityIndicator size="small" color="#666" />
-              </View>
-            ) : null
-          }
+          ListFooterComponent={renderFooter}
         />
       )}
     </View>
@@ -426,6 +497,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
+  },
+  footerContainer: {
+    padding: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerText: {
+    marginTop: 8,
+    color: "#999",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
 
