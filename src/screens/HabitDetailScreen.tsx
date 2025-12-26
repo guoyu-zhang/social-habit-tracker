@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
@@ -28,6 +29,31 @@ type HabitDetailScreenNavigationProp = StackNavigationProp<
   "HabitDetail"
 >;
 
+const HABIT_COLORS = [
+  "#FF6B6B", // Warm Red
+  "#FF9F43", // Deep Orange
+  "#FDCB6E", // Mustard Yellow
+  "#55EFC4", // Mint Green
+  "#00CEC9", // Robin's Egg Blue
+  "#0984E3", // Electron Blue
+  "#6C5CE7", // Exquisite Purple
+  "#A29BFE", // Shy Moment Lavender
+  "#FD79A8", // Pico Pink
+  "#E84393", // Prunus Avium Pink
+  "#636E72", // American River Grey
+  "#2D3436", // Dracula Orchid (Dark Grey)
+];
+
+const hexToRgba = (hex: string, opacity: number) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(
+        result[3],
+        16
+      )}, ${opacity})`
+    : `rgba(0, 0, 0, ${opacity})`;
+};
+
 const HabitDetailScreen: React.FC = () => {
   const [habit, setHabit] = useState<Habit | null>(null);
   const [stats, setStats] = useState<HabitStats | null>(null);
@@ -39,6 +65,7 @@ const HabitDetailScreen: React.FC = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedIsPublic, setEditedIsPublic] = useState(false);
+  const [editedColor, setEditedColor] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const { deleteHabit: deleteHabitFromContext, updateHabit } = useHabits();
 
@@ -53,6 +80,8 @@ const HabitDetailScreen: React.FC = () => {
       setCompletions(initialData.completions);
       setLoading(false);
       setEditedTitle(initialData.title);
+      setEditedColor(initialData.color);
+      setEditedIsPublic(initialData.is_public);
     }
   }, [initialData]);
 
@@ -81,6 +110,8 @@ const HabitDetailScreen: React.FC = () => {
       setHabit(habitData);
       if (!isEditingName) {
         setEditedTitle(habitData.title);
+        setEditedColor(habitData.color);
+        setEditedIsPublic(habitData.is_public);
       }
 
       // Fetch habit stats
@@ -231,41 +262,47 @@ const HabitDetailScreen: React.FC = () => {
 
   const handleEditPress = () => {
     if (isEditingName) {
-      handleSaveHabitName();
+      handleSaveChanges();
     } else {
       if (habit) {
         setEditedTitle(habit.title);
+        setEditedColor(habit.color);
+        setEditedIsPublic(habit.is_public);
         setIsEditingName(true);
       }
     }
   };
 
-  const handleSaveHabitName = async () => {
+  const handleSaveChanges = async () => {
     if (!habit || !editedTitle.trim()) return;
 
     setIsUpdating(true);
     try {
+      const updates = {
+        title: editedTitle.trim(),
+        is_public: editedIsPublic,
+        color: editedColor,
+      };
+
       const { error } = await supabase
         .from("habits")
-        .update({ title: editedTitle.trim() })
+        .update(updates)
         .eq("id", habit.id);
 
       if (error) {
-        Alert.alert("Error", "Failed to update habit name. Please try again.");
+        Alert.alert("Error", "Failed to update habit. Please try again.");
         return;
       }
 
       // Update local state
-      setHabit((prev) =>
-        prev ? { ...prev, title: editedTitle.trim() } : null
-      );
+      setHabit((prev) => (prev ? { ...prev, ...updates } : null));
 
       // Update global context state
-      updateHabit(habit.id, { title: editedTitle.trim() });
+      updateHabit(habit.id, updates);
 
       setIsEditingName(false);
     } catch (error) {
-      Alert.alert("Error", "Failed to update habit name. Please try again.");
+      Alert.alert("Error", "Failed to update habit. Please try again.");
     } finally {
       setIsUpdating(false);
     }
@@ -275,6 +312,8 @@ const HabitDetailScreen: React.FC = () => {
     setIsEditingName(false);
     if (habit) {
       setEditedTitle(habit.title);
+      setEditedColor(habit.color);
+      setEditedIsPublic(habit.is_public);
     }
   };
 
@@ -333,7 +372,7 @@ const HabitDetailScreen: React.FC = () => {
             autoFocus={false}
             placeholder="Habit Name"
             maxLength={50}
-            onSubmitEditing={handleSaveHabitName}
+            onSubmitEditing={handleSaveChanges}
             returnKeyType="done"
           />
         ) : (
@@ -369,20 +408,24 @@ const HabitDetailScreen: React.FC = () => {
         <View style={styles.statsContainer}>
           <Text style={styles.sectionTitle}>Statistics</Text>
 
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.current_streak}</Text>
-              <Text style={styles.statLabel}>Current Streak</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.current_streak}</Text>
+              <Text style={styles.statLabel}>Current{"\n"}Streak</Text>
             </View>
 
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.total_completions}</Text>
-              <Text style={styles.statLabel}>Total Completions</Text>
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.total_completions}</Text>
+              <Text style={styles.statLabel}>Total{"\n"}Completions</Text>
             </View>
 
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.longest_streak}</Text>
-              <Text style={styles.statLabel}>Longest Streak</Text>
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.longest_streak}</Text>
+              <Text style={styles.statLabel}>Longest{"\n"}Streak</Text>
             </View>
           </View>
         </View>
@@ -392,7 +435,7 @@ const HabitDetailScreen: React.FC = () => {
           <HabitCalendar
             habitId={habit.id}
             habitTitle={habit.title}
-            habitColor={habit.color}
+            habitColor={isEditingName ? editedColor : habit.color}
             completions={completions}
             onCompletionPress={handleCompletionPress}
             onDayPress={handleDayPress}
@@ -406,6 +449,170 @@ const HabitDetailScreen: React.FC = () => {
 
         <View style={styles.infoContainer}>
           <Text style={styles.sectionTitle}>Details</Text>
+
+          <View
+            style={[
+              styles.infoRow,
+              isEditingName && {
+                flexDirection: "column",
+                alignItems: "flex-start",
+                gap: 12,
+              },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              <Ionicons name="color-palette-outline" size={20} color="#666" />
+              <Text style={styles.infoLabel}>Color</Text>
+              {!isEditingName && (
+                <View style={styles.colorPreview}>
+                  {/* Deep Depth Layer */}
+                  <LinearGradient
+                    colors={["#ffffff", "#e8e8e8"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+                  />
+
+                  {/* Strong Color Gradient */}
+                  <LinearGradient
+                    colors={[
+                      hexToRgba(habit.color, 0.08),
+                      hexToRgba(habit.color, 0.25),
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+                  />
+
+                  {/* Texture/Noise Simulation */}
+                  <View
+                    style={[
+                      StyleSheet.absoluteFill,
+                      {
+                        opacity: 0.03,
+                        backgroundColor: "#000",
+                        borderRadius: 12,
+                      },
+                    ]}
+                  />
+
+                  {/* Top Highlight */}
+                  <LinearGradient
+                    colors={["rgba(255,255,255,0.95)", "rgba(255,255,255,0.0)"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0.8, y: 0.6 }}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: "60%",
+                      borderRadius: 12,
+                      opacity: 0.6,
+                    }}
+                  />
+
+                  {/* Bottom-Right Shadow/Rim */}
+                  <LinearGradient
+                    colors={["transparent", hexToRgba(habit.color, 0.2)]}
+                    start={{ x: 0.5, y: 0.5 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[
+                      StyleSheet.absoluteFill,
+                      { borderRadius: 12, opacity: 0.8 },
+                    ]}
+                  />
+                </View>
+              )}
+            </View>
+
+            {isEditingName && (
+              <View style={styles.colorPickerContainer}>
+                {HABIT_COLORS.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorOption,
+                      editedColor === color && styles.selectedColor,
+                    ]}
+                    onPress={() => setEditedColor(color)}
+                  >
+                    {/* Deep Depth Layer */}
+                    <LinearGradient
+                      colors={["#ffffff", "#e8e8e8"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+                    />
+
+                    {/* Strong Color Gradient */}
+                    <LinearGradient
+                      colors={[hexToRgba(color, 0.08), hexToRgba(color, 0.25)]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+                    />
+
+                    {/* Texture/Noise Simulation */}
+                    <View
+                      style={[
+                        StyleSheet.absoluteFill,
+                        {
+                          opacity: 0.03,
+                          backgroundColor: "#000",
+                          borderRadius: 18,
+                        },
+                      ]}
+                    />
+
+                    {/* Top Highlight */}
+                    <LinearGradient
+                      colors={[
+                        "rgba(255,255,255,0.95)",
+                        "rgba(255,255,255,0.0)",
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0.8, y: 0.6 }}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: "60%",
+                        borderRadius: 18,
+                        opacity: 0.6,
+                      }}
+                    />
+
+                    {/* Bottom-Right Shadow/Rim */}
+                    <LinearGradient
+                      colors={["transparent", hexToRgba(color, 0.2)]}
+                      start={{ x: 0.5, y: 0.5 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        StyleSheet.absoluteFill,
+                        { borderRadius: 18, opacity: 0.8 },
+                      ]}
+                    />
+
+                    {editedColor === color && (
+                      <View style={styles.selectionBorder} />
+                    )}
+
+                    {editedColor === color && (
+                      <Ionicons name="checkmark" size={20} color="#333" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
 
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={20} color="#666" />
@@ -498,25 +705,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
   },
   navHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 20,
     backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
   },
   navHeaderTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#1a1a1a",
     flex: 1,
     textAlign: "center",
     marginHorizontal: 10,
+    letterSpacing: -0.5,
   },
   headerInput: {
     borderBottomWidth: 1,
@@ -527,66 +734,63 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingBottom: 10,
   },
   habitDescription: {
     fontSize: 16,
     color: "#666",
     lineHeight: 24,
+    textAlign: "center",
   },
   statsContainer: {
-    backgroundColor: "#fff",
-    margin: 20,
-    borderRadius: 12,
-    padding: 20,
+    marginTop: 20,
+    marginHorizontal: 24,
+    marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 20,
+    letterSpacing: -0.5,
   },
-  statsGrid: {
+  statsRow: {
     flexDirection: "row",
-    gap: 8,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-    borderRadius: 8,
-    padding: 12,
+    justifyContent: "space-around",
     alignItems: "center",
+    paddingVertical: 10,
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#007AFF",
-    marginBottom: 4,
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: "#eee",
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: "600",
-    color: "#333",
+    color: "#1a1a1a",
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
     color: "#666",
+    fontWeight: "500",
     textAlign: "center",
   },
   infoContainer: {
-    backgroundColor: "#fff",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    padding: 20,
+    marginHorizontal: 24,
+    marginBottom: 30,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
@@ -594,7 +798,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "#333",
-    marginLeft: 12,
+    marginLeft: 16,
+    fontWeight: "500",
   },
   infoValue: {
     fontSize: 16,
@@ -602,19 +807,15 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   actionsContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingBottom: 40,
+    marginTop: 20,
   },
-
   deleteButton: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#FF3B30",
   },
   deleteButtonText: {
     color: "#FF3B30",
@@ -623,11 +824,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   calendarContainer: {
-    backgroundColor: "#fff",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    padding: 16,
+    marginHorizontal: 24,
+    marginBottom: 30,
   },
   modalOverlay: {
     flex: 1,
@@ -702,6 +900,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#ccc",
     marginHorizontal: 4,
+  },
+  colorPickerContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 10,
+    maxWidth: 270,
+    alignSelf: "center",
+    justifyContent: "center",
+  },
+  colorOption: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  selectedColor: {
+    // Removed scale transform to prevent jagged edges
+  },
+  selectionBorder: {
+    position: "absolute",
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#1a1a1a",
+    backgroundColor: "transparent",
+    borderCurve: "continuous",
+  },
+  colorPreview: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+    backgroundColor: "#fff",
   },
 });
 

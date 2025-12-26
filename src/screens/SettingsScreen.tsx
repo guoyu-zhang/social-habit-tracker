@@ -91,6 +91,9 @@ const SettingsScreen: React.FC = () => {
 
       if (habitsError) throw habitsError;
 
+      // Refresh habits context to clear local state
+      await fetchHabits();
+
       Alert.alert("Success", "All data has been reset successfully.");
     } catch (error: any) {
       console.error("Error resetting data:", error);
@@ -101,121 +104,164 @@ const SettingsScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Preferences</Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate("Notifications")}
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
         >
-          <Ionicons name="notifications-outline" size={24} color="#333" />
-          <Text style={styles.menuText}>Notifications</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Support</Text>
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="help-circle-outline" size={24} color="#333" />
-          <Text style={styles.menuText}>Help & Support</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Preferences</Text>
+          <View style={styles.menuItem}>
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="notifications-outline" size={22} color="#333" />
+            </View>
+            <Text style={styles.menuText}>Notifications</Text>
+          </View>
+        </View>
 
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="information-circle-outline" size={24} color="#333" />
-          <Text style={styles.menuText}>About</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Support</Text>
+          <TouchableOpacity style={styles.menuItem}>
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="help-circle-outline" size={22} color="#333" />
+            </View>
+            <Text style={styles.menuText}>Help & Support</Text>
+            <Ionicons name="chevron-forward" size={18} color="#ccc" />
+          </TouchableOpacity>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Data Management</Text>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={handleResetData}
-          disabled={resetting}
-        >
-          <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-          <Text style={[styles.menuText, { color: "#FF3B30" }]}>
-            {resetting ? "Resetting..." : "Reset All Data"}
-          </Text>
-          {resetting && <ActivityIndicator size="small" color="#FF3B30" />}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.menuItem}>
+            <View style={styles.menuIconContainer}>
+              <Ionicons
+                name="information-circle-outline"
+                size={22}
+                color="#333"
+              />
+            </View>
+            <Text style={styles.menuText}>About</Text>
+            <Ionicons name="chevron-forward" size={18} color="#ccc" />
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.section}>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Data Management</Text>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={handleResetData}
+            disabled={resetting}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+            </View>
+            <Text style={[styles.menuText, { color: "#FF3B30" }]}>
+              {resetting ? "Resetting..." : "Reset All Data"}
+            </Text>
+            {resetting && <ActivityIndicator size="small" color="#FF3B30" />}
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Version 1.0.0</Text>
-        <Text style={styles.footerText}>Made with ❤️ for habit tracking</Text>
-      </View>
-    </ScrollView>
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+          >
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Version 1.0.0</Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#fff",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 24,
+    backgroundColor: "#fff",
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  placeholder: {
+    width: 40,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    letterSpacing: -0.5,
+  },
+  scrollView: {
+    flex: 1,
   },
   section: {
-    backgroundColor: "#fff",
-    marginTop: 20,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#e1e1e1",
+    marginBottom: 40,
+    paddingHorizontal: 24,
   },
   sectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#666",
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#999",
+    marginBottom: 16,
     textTransform: "uppercase",
-    backgroundColor: "#f5f5f5",
+    letterSpacing: 1.2,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+  },
+  menuIconContainer: {
+    width: 40,
+    alignItems: "flex-start",
   },
   menuText: {
     flex: 1,
-    fontSize: 16,
-    color: "#333",
-    marginLeft: 16,
+    fontSize: 17,
+    color: "#000",
+    fontWeight: "500",
+    letterSpacing: -0.3,
   },
   signOutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
     paddingVertical: 16,
+    alignItems: "center",
     justifyContent: "center",
+    marginTop: 20,
   },
   signOutText: {
-    fontSize: 16,
+    fontSize: 17,
     color: "#FF3B30",
-    marginLeft: 16,
     fontWeight: "600",
+    letterSpacing: -0.3,
   },
   footer: {
     alignItems: "center",
-    paddingVertical: 32,
+    paddingVertical: 40,
   },
   footerText: {
-    fontSize: 14,
-    color: "#999",
-    marginBottom: 4,
+    fontSize: 13,
+    color: "#C7C7CC",
+    fontWeight: "500",
   },
 });
 

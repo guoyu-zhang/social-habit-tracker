@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -12,7 +12,7 @@ import {
 import { HabitCompletion } from "../types";
 import { CachedImage } from "./CachedImage";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 interface ImageModalProps {
   visible: boolean;
@@ -28,22 +28,24 @@ const ImageModal: React.FC<ImageModalProps> = ({
 }) => {
   if (!completion) return null;
 
-  const formatDate = (dateString: string) => {
+  const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    // Time
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? "pm" : "am";
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const strTime = `${hours}:${minutes.toString().padStart(2, "0")}${ampm}`;
+
+    // Date
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const day = date.getDate().toString().padStart(2, "0");
+    const year = date.getFullYear();
+    const strDate = `${month}.${day}.${year}`;
+
+    return `${strTime} ${strDate}`;
   };
 
   return (
@@ -88,10 +90,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
               {/* Date and Time */}
               <View style={styles.dateTimeContainer}>
                 <Text style={styles.dateText}>
-                  {formatDate(completion.completed_at)}
-                </Text>
-                <Text style={styles.timeText}>
-                  {formatTime(completion.completed_at)}
+                  {formatDateTime(completion.completed_at)}
                 </Text>
               </View>
             </View>
@@ -110,63 +109,76 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContainer: {
-    width: width * 0.9,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    overflow: "hidden",
+    width: "100%",
+    alignItems: "center",
   },
   modalContent: {
     width: "100%",
-  },
-  dateTimeContainer: {
-    padding: 20,
-    paddingBottom: 10,
+    backgroundColor: "transparent",
     alignItems: "center",
-  },
-  dateText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  timeText: {
-    fontSize: 14,
-    color: "#666",
   },
   imageContainer: {
-    paddingHorizontal: 0,
-    paddingBottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
+    width: width - 32,
+    aspectRatio: 0.8, // 4:5 aspect ratio
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#000",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   dualImageLayout: {
-    position: "relative",
-    alignItems: "center",
     width: "100%",
+    height: "100%",
+    position: "relative",
   },
   mainImage: {
     width: "100%",
-    aspectRatio: 0.8, // 4:5 ratio (width/height = 4/5 = 0.8)
-    borderRadius: 0,
+    height: "100%",
+    borderRadius: 16,
   },
   frontImageOverlay: {
     position: "absolute",
     top: 16,
     right: 16,
-    width: 120,
-    height: 150, // 4:5 aspect ratio for overlay too
+    width: "30%",
+    height: "30%",
     borderRadius: 12,
-    borderWidth: 3,
-    borderColor: "#fff",
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.8)",
   },
   singleImageContainer: {
-    alignItems: "center",
     width: "100%",
+    height: "100%",
   },
   singleImage: {
     width: "100%",
-    aspectRatio: 0.8, // 4:5 ratio
-    borderRadius: 0,
+    height: "100%",
+    borderRadius: 16,
+  },
+  dateTimeContainer: {
+    paddingTop: 16,
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  dateText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 4,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  timeText: {
+    fontSize: 14,
+    color: "#fff",
+    opacity: 0.8,
   },
 });
 

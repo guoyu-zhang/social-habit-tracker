@@ -29,22 +29,24 @@ const DayDetailModal: React.FC<DayDetailModalProps> = ({
 
   if (!completions || completions.length === 0) return null;
 
-  const formatDate = (dateString: string) => {
+  const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    // Time
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? "pm" : "am";
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const strTime = `${hours}:${minutes.toString().padStart(2, "0")}${ampm}`;
+
+    // Date
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const day = date.getDate().toString().padStart(2, "0");
+    const year = date.getFullYear();
+    const strDate = `${month}.${day}.${year}`;
+
+    return `${strTime} ${strDate}`;
   };
 
   const handleScroll = (event: any) => {
@@ -107,10 +109,7 @@ const DayDetailModal: React.FC<DayDetailModalProps> = ({
                   {/* Date and Time */}
                   <View style={styles.dateTimeContainer}>
                     <Text style={styles.dateText}>
-                      {formatDate(completion.completed_at)}
-                    </Text>
-                    <Text style={styles.timeText}>
-                      {formatTime(completion.completed_at)}
+                      {formatDateTime(completion.completed_at)}
                     </Text>
                   </View>
                 </View>
@@ -170,31 +169,37 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    overflow: "hidden",
+    backgroundColor: "transparent",
+    alignItems: "center",
   },
   dateTimeContainer: {
-    padding: 20,
-    paddingBottom: 20,
+    paddingTop: 16,
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
   },
   dateText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
+    color: "#fff",
     marginBottom: 4,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   timeText: {
     fontSize: 14,
-    color: "#666",
+    color: "rgba(255, 255, 255, 0.8)",
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   imageContainer: {
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#000",
+    backgroundColor: "transparent",
+    borderRadius: 20,
+    overflow: "hidden",
   },
   dualImageLayout: {
     position: "relative",

@@ -9,6 +9,7 @@ import {
   Image,
   Dimensions,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -31,6 +32,16 @@ interface HabitWithStats extends Habit {
   stats: HabitStats;
   completions: HabitCompletion[];
 }
+
+const hexToRgba = (hex: string, opacity: number) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(
+        result[3],
+        16
+      )}, ${opacity})`
+    : `rgba(0, 0, 0, ${opacity})`;
+};
 
 const UserProfileScreen: React.FC = () => {
   const route = useRoute<UserProfileScreenRouteProp>();
@@ -627,6 +638,101 @@ const UserProfileScreen: React.FC = () => {
           </Text>
           {renderFriendButton()}
 
+          {/* Habit Tags */}
+          {habits.length > 0 && (
+            <View style={styles.habitTagsContainer}>
+              {habits.map((habit) => {
+                const cardBackgroundColor = hexToRgba(habit.color, 0.15);
+                const borderColor = hexToRgba(habit.color, 0.2);
+                const shadowColor = hexToRgba(habit.color, 0.3);
+
+                return (
+                  <View
+                    key={habit.id}
+                    style={[
+                      styles.habitTag,
+                      {
+                        backgroundColor: "#fff",
+                        borderColor: "rgba(255,255,255,0.6)",
+                        borderWidth: 1,
+                        shadowColor: shadowColor,
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 2,
+                      },
+                    ]}
+                  >
+                    {/* Deep Depth Layer */}
+                    <LinearGradient
+                      colors={["#ffffff", "#e8e8e8"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+                    />
+
+                    {/* Strong Color Gradient */}
+                    <LinearGradient
+                      colors={[
+                        hexToRgba(habit.color, 0.08),
+                        hexToRgba(habit.color, 0.25),
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+                    />
+
+                    {/* Texture/Noise Simulation */}
+                    <View
+                      style={[
+                        StyleSheet.absoluteFill,
+                        {
+                          opacity: 0.03,
+                          backgroundColor: "#000",
+                          borderRadius: 12,
+                        },
+                      ]}
+                    />
+
+                    {/* Top Highlight */}
+                    <LinearGradient
+                      colors={[
+                        "rgba(255,255,255,0.95)",
+                        "rgba(255,255,255,0.0)",
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0.8, y: 0.6 }}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: "60%",
+                        borderRadius: 12,
+                        opacity: 0.6,
+                      }}
+                    />
+
+                    {/* Bottom-Right Shadow/Rim */}
+                    <LinearGradient
+                      colors={["transparent", hexToRgba(habit.color, 0.2)]}
+                      start={{ x: 0.5, y: 0.5 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        StyleSheet.absoluteFill,
+                        { borderRadius: 12, opacity: 0.8 },
+                      ]}
+                    />
+
+                    <Text style={[styles.habitTagText, { color: "#333333" }]}>
+                      {habit.title}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {stats && (
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
@@ -707,6 +813,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
   },
   header: {
     flexDirection: "row",
@@ -887,6 +994,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 4,
     overflow: "hidden",
+    borderRadius: 3,
   },
   emptyCellBackground: {
     ...StyleSheet.absoluteFillObject,
@@ -899,7 +1007,7 @@ const styles = StyleSheet.create({
   dayNumber: {
     fontSize: 16,
     fontWeight: "600",
-    color: "rgba(51, 51, 51, 0.3)",
+    color: "#999999",
     zIndex: 2,
   },
   dayNumberLight: {
@@ -921,6 +1029,24 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     color: "#666",
+  },
+  habitTagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 20,
+  },
+  habitTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  habitTagText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   statsContainer: {
     flexDirection: "row",

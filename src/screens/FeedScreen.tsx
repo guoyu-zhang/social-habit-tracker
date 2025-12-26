@@ -18,6 +18,7 @@ import { supabase } from "../services/supabase";
 import { FeedItem, RootStackParamList } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { useCollapsibleHeader } from "../hooks/useCollapsibleHeader";
+import EncourageButton from "../components/EncourageButton";
 import { CachedImage } from "../components/CachedImage";
 
 type FeedScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -33,6 +34,33 @@ const hexToRgba = (hex: string, opacity: number) => {
         16
       )}, ${opacity})`
     : `rgba(0, 0, 0, ${opacity})`;
+};
+
+const formatTimeAgo = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) {
+    return "Just now";
+  }
+
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes}m ago`;
+  }
+
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) {
+    return `${diffInHours}h ago`;
+  }
+
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) {
+    return `${diffInDays}d ago`;
+  }
+
+  return date.toLocaleDateString();
 };
 
 const FeedScreen: React.FC = () => {
@@ -159,71 +187,11 @@ const FeedScreen: React.FC = () => {
           </TouchableOpacity>
           <View>
             <Text style={styles.username}>{item.user.username}</Text>
-            <Text style={styles.timestamp}>
-              {new Date(item.created_at).toLocaleDateString()}
-            </Text>
           </View>
         </TouchableOpacity>
-        <View
-          style={[
-            styles.habitBadge,
-            {
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.6)",
-              backgroundColor: "#fff",
-              overflow: "hidden",
-            },
-          ]}
-        >
-          {/* Deep Depth Layer */}
-          <LinearGradient
-            colors={["#ffffff", "#e8e8e8"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-
-          {/* Color Gradient */}
-          <LinearGradient
-            colors={[
-              hexToRgba(item.habit.color, 0.15),
-              hexToRgba(item.habit.color, 0.35),
-            ]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-
-          {/* Texture */}
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                opacity: 0.03,
-                backgroundColor: "#000",
-              },
-            ]}
-          />
-
-          {/* Top Highlight */}
-          <LinearGradient
-            colors={["rgba(255,255,255,0.8)", "rgba(255,255,255,0.0)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0.8, y: 0.6 }}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: "60%",
-              opacity: 0.6,
-            }}
-          />
-
-          <Text style={[styles.habitTitle, { color: "#000" }]}>
-            {item.habit.title}
-          </Text>
-        </View>
+        <TouchableOpacity style={styles.menuButton}>
+          <Ionicons name="ellipsis-vertical" size={20} color="#666" />
+        </TouchableOpacity>
       </View>
 
       {item.completion.image_url && (
@@ -255,12 +223,85 @@ const FeedScreen: React.FC = () => {
       )}
 
       <View style={styles.feedFooter}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="heart-outline" size={20} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="chatbubble-outline" size={20} color="#666" />
-        </TouchableOpacity>
+        <View style={styles.footerLeftContent}>
+          <View
+            style={[
+              styles.habitBadge,
+              {
+                backgroundColor: "#fff",
+                borderColor: "rgba(255,255,255,0.6)",
+                borderWidth: 1,
+                shadowColor: hexToRgba(item.habit.color, 0.3),
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 2,
+                overflow: "hidden",
+                alignSelf: "flex-start",
+                marginBottom: 8,
+              },
+            ]}
+          >
+            {/* Deep Depth Layer */}
+            <LinearGradient
+              colors={["#ffffff", "#e8e8e8"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Strong Color Gradient */}
+            <LinearGradient
+              colors={[
+                hexToRgba(item.habit.color, 0.08),
+                hexToRgba(item.habit.color, 0.25),
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Texture/Noise Simulation */}
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  opacity: 0.03,
+                  backgroundColor: "#000",
+                },
+              ]}
+            />
+
+            {/* Top Highlight */}
+            <LinearGradient
+              colors={["rgba(255,255,255,0.95)", "rgba(255,255,255,0.0)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0.8, y: 0.6 }}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: "60%",
+                opacity: 0.6,
+              }}
+            />
+
+            {/* Bottom-Right Shadow/Rim */}
+            <LinearGradient
+              colors={["transparent", hexToRgba(item.habit.color, 0.2)]}
+              start={{ x: 0.5, y: 0.5 }}
+              end={{ x: 1, y: 1 }}
+              style={[StyleSheet.absoluteFill, { opacity: 0.8 }]}
+            />
+
+            <Text style={[styles.habitTitle, { color: "#333333" }]}>
+              {item.habit.title}
+            </Text>
+          </View>
+          <Text style={styles.timestamp}>{formatTimeAgo(item.created_at)}</Text>
+        </View>
+        <EncourageButton onPress={() => console.log("Encouraged!")} />
       </View>
     </View>
   );
@@ -364,6 +405,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
   },
   header: {
     flexDirection: "row",
@@ -398,7 +440,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 6,
   },
   userInfo: {
     flexDirection: "row",
@@ -418,11 +462,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
-  timestamp: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 2,
-  },
   habitBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -432,6 +471,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  menuButton: {
+    padding: 8,
+    marginRight: -8,
   },
   feedImage: {
     width: "100%",
@@ -473,12 +516,19 @@ const styles = StyleSheet.create({
   },
   feedFooter: {
     flexDirection: "row",
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 8,
     paddingBottom: 16,
+    justifyContent: "space-between",
+    alignItems: "flex-end", // Align encourage button to bottom
+    marginTop: 12,
   },
-  actionButton: {
-    marginRight: 16,
-    padding: 8,
+  footerLeftContent: {
+    justifyContent: "center",
+  },
+  timestamp: {
+    fontSize: 12,
+    color: "#666",
   },
   emptyContainer: {
     flex: 1,

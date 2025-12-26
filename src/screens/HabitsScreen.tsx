@@ -261,13 +261,24 @@ const HabitsScreen: React.FC = () => {
                 style={[
                   styles.streakBadge,
                   {
-                    backgroundColor: hexToRgba(item.color, 0.1),
-                    height: 32, // Match checkCircle height
+                    backgroundColor: "transparent",
+                    height: 36,
                     justifyContent: "center",
+                    paddingHorizontal: 10,
                   },
                 ]}
               >
-                <Text style={[styles.streakDisplay, { color: item.color }]}>
+                <Text
+                  style={[
+                    styles.streakDisplay,
+                    {
+                      color: "#666",
+                      fontSize: 16,
+                      fontWeight: "600",
+                      letterSpacing: 0.5,
+                    },
+                  ]}
+                >
                   {item.stats.current_streak} 🔥
                 </Text>
               </View>
@@ -288,10 +299,10 @@ const HabitsScreen: React.FC = () => {
                     styles.checkCircle,
                     {
                       borderColor: isOptimisticallyCompleted
-                        ? item.color
+                        ? "#333333"
                         : "#D1D1D6",
                       backgroundColor: isOptimisticallyCompleted
-                        ? item.color
+                        ? "#333333"
                         : "transparent",
                     },
                   ]}
@@ -431,6 +442,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
   },
   header: {
     flexDirection: "row",
@@ -498,7 +510,7 @@ const styles = StyleSheet.create({
   habitActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 4,
   },
   privacyButton: {
     padding: 8,
@@ -566,23 +578,21 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#333",
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.8)",
+    color: "#666",
     textAlign: "center",
     marginBottom: 32,
   },
   createButton: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#333",
     borderRadius: 16,
     paddingHorizontal: 32,
     paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   createButtonText: {
     color: "#fff",

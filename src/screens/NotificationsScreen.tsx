@@ -275,6 +275,7 @@ const NotificationsScreen: React.FC = () => {
       <TouchableOpacity
         style={[styles.notificationItem, isUnread && styles.unreadNotification]}
         onPress={() => handleNotificationPress(item)}
+        activeOpacity={0.7}
       >
         <View style={styles.notificationContent}>
           <View style={styles.notificationHeader}>
@@ -311,6 +312,7 @@ const NotificationsScreen: React.FC = () => {
                   onPress={() =>
                     handleFriendRequest(item.friendRequest!.id, "accept")
                   }
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.acceptButtonText}>Accept</Text>
                 </TouchableOpacity>
@@ -320,6 +322,7 @@ const NotificationsScreen: React.FC = () => {
                   onPress={() =>
                     handleFriendRequest(item.friendRequest!.id, "decline")
                   }
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.declineButtonText}>Decline</Text>
                 </TouchableOpacity>
@@ -338,7 +341,7 @@ const NotificationsScreen: React.FC = () => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={28} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         {notifications.length > 0 ? (
@@ -362,7 +365,7 @@ const NotificationsScreen: React.FC = () => {
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-outline" size={64} color="#8E8E93" />
+          <Ionicons name="notifications-outline" size={64} color="#ccc" />
           <Text style={styles.emptyText}>No notifications yet</Text>
           <Text style={styles.emptySubtext}>
             You'll see friend requests and other updates here
@@ -382,42 +385,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e5e9",
+    paddingBottom: 24,
     backgroundColor: "#fff",
   },
   backButton: {
     padding: 8,
+    marginLeft: -8,
   },
   placeholder: {
     width: 40,
   },
   headerTitle: {
-    color: "#333",
-    fontSize: 20,
-    fontWeight: "bold",
+    color: "#1a1a1a",
+    fontSize: 24,
+    fontWeight: "600",
+    letterSpacing: -0.5,
   },
   clearAllText: {
-    color: "#007AFF",
-    fontSize: 16,
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "600",
   },
   notificationItem: {
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    marginVertical: 4,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: "#F7F7F7",
+    marginHorizontal: 24,
+    marginVertical: 6,
+    borderRadius: 20,
+    padding: 20,
   },
   unreadNotification: {
-    backgroundColor: "#f0f8ff",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#eee",
   },
   notificationContent: {
     flex: 1,
@@ -432,46 +433,57 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notificationTitle: {
-    color: "#333",
+    color: "#1a1a1a",
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   notificationTime: {
-    color: "#666",
+    color: "#999",
     fontSize: 12,
+    fontWeight: "500",
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#333",
     marginLeft: 8,
+    marginTop: 6,
   },
   notificationMessage: {
-    color: "#555",
+    color: "#666",
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 12,
   },
   friendRequestActions: {
-    marginTop: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
   },
   senderInfo: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   senderAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   senderName: {
     color: "#333",
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   actionButtons: {
     flexDirection: "row",
@@ -479,16 +491,16 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
+    justifyContent: "center",
   },
   acceptButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#1a1a1a",
   },
   declineButton: {
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#F0F0F0",
   },
   acceptButtonText: {
     color: "#fff",
@@ -496,7 +508,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   declineButtonText: {
-    color: "#333",
+    color: "#666",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -504,20 +516,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 32,
+    paddingHorizontal: 40,
   },
   emptyText: {
-    color: "#333",
+    color: "#1a1a1a",
     fontSize: 18,
     fontWeight: "600",
-    marginTop: 16,
+    marginTop: 24,
     marginBottom: 8,
   },
   emptySubtext: {
-    color: "#666",
-    fontSize: 14,
+    color: "#999",
+    fontSize: 15,
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });
 

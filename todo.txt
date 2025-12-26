@@ -1,10 +1,8 @@
-- fix cache
-- redesign add habits
-- add icon for each habit
 - develop the likes and comments features
-- delete account feature
-- deal with forget password
-- ability to delete snaps and posts
 - add note to completion
 - add bio to profile
-
+- fix cache
+- implement the frequencies feature
+- delete account feature
+- deal with forget password
+- 
